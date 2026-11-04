@@ -239,7 +239,7 @@ class TeraboxService {
                 const fastStreamUrl = {};
 
                 if (fsId && shareid && uk && sign && timestamp) {
-                    const baseStreamUrl = `https://${domain}/share/streaming?app_id=250528&channel=dubox&clienttype=0&web=1&uk=${uk}&shareid=${shareid}&fid=${fsId}&sign=${sign}&timestamp=${timestamp}`;
+                    const baseStreamUrl = `https://${domain}/share/streaming?app_id=250528&channel=dubox&clienttype=0&web=1&uk=${uk}&shareid=${shareid}&fid=${fsId}&sign=${sign}&timestamp=${timestamp}&preview=0&freevip=1`;
                     
                     const cookieParam = cookie ? `&cookie=${encodeURIComponent(cookie)}` : '';
                     fastStreamUrl['360p'] = `/api/proxy/stream.m3u8?url=${encodeURIComponent(baseStreamUrl + '&type=M3U8_AUTO_360')}&referer=${encodeURIComponent(finalUrl)}${cookieParam}`;
