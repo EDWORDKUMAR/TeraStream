@@ -30,9 +30,6 @@
       <span>iTera<span class="gradient-text">Play</span></span>
     </a>
     <div class="nav-actions">
-      <button id="cookie-modal-btn" class="theme-btn" style="width: auto; padding: 0 0.85rem; border-radius: 999px; gap: 0.35rem; font-size: 0.8rem; font-weight: 600;" title="Unlock Full Video Length">
-        🔑 <span id="cookie-status-badge">Unlock Full Video</span>
-      </button>
       <button id="theme-toggle" class="theme-btn" title="Toggle Theme" aria-label="Toggle theme">🌙</button>
     </div>
   </header>
@@ -46,26 +43,6 @@
       <h1>Play & Download <span class="gradient-text">TeraBox Videos</span> Online</h1>
       <p>Watch any TeraBox video with multi-quality adaptive streaming (1080p, 720p, 480p) or get direct high-speed download links without installing the app.</p>
     </section>
-
-    <!-- Cookie Configuration Box (Collapsible) -->
-    <div id="cookie-box" class="search-card" style="display: none; border-color: rgba(99, 102, 241, 0.4); background: rgba(30, 27, 75, 0.4); margin-bottom: 1.25rem;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-        <h3 style="font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
-          🔑 Unlock Full Video Playback (Bypass 30s Limit)
-        </h3>
-        <button id="close-cookie-box" style="background:none; border:none; color:var(--text-muted); font-size:1.2rem; cursor:pointer;">✕</button>
-      </div>
-      <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.75rem; line-height: 1.4;">
-        TeraBox enforces a 30-second preview limit on anonymous requests. By providing your free TeraBox <strong>ndus</strong> cookie, you unlock full-length streaming for all videos!
-      </p>
-      <div style="display: flex; gap: 0.5rem;">
-        <input type="text" id="cookie-input" class="search-input" style="height: 42px;" placeholder="Paste ndus cookie (e.g. Y3ab... or ndus=Y3ab...)" />
-        <button id="save-cookie-btn" class="btn btn-primary" style="height: 42px; padding: 0 1.25rem; flex: none;">Save</button>
-      </div>
-      <div style="margin-top: 0.6rem; font-size: 0.75rem; color: var(--text-muted);">
-        💡 <strong>How to get ndus in 10s:</strong> Log into <a href="https://terabox.com" target="_blank" style="color:var(--accent-blue);">terabox.com</a> in browser &rarr; Press <code>F12</code> &rarr; Application &rarr; Cookies &rarr; copy value of <code>ndus</code>.
-      </div>
-    </div>
 
     <!-- Search Input Form -->
     <section class="search-card">
@@ -143,7 +120,6 @@
           <span id="video-size" class="badge badge-blue">💾 0 MB</span>
           <span id="video-duration" class="badge badge-purple">⏱️ 00:00</span>
           <span id="video-quality" class="badge badge-green">✨ HD</span>
-          <span id="video-limit-badge" class="badge badge-purple" style="display:none; cursor:pointer;">⚡ Preview: Click to Unlock Full</span>
         </div>
 
         <div class="download-grid">
