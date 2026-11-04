@@ -1,18 +1,22 @@
 /**
  * Pluggable Ad & Monetization Manager for Telegram Mini App
- * Official Adsgram Rewarded Video Integration (Block ID: 54835)
- * Documentation: https://docs.adsgram.ai/publisher/reward-interstitial-integration
+ * Official Monetag Rewarded Interstitial Integration (Zone ID: 12191197)
+ * SDK: <script src="https://libtl.com/sdk.js" data-zone="12191197" data-sdk="show_12191197"></script>
  */
 
 const AdConfig = {
     // ⚙️ Set to true to activate ads
     enabled: true,
 
-    // Provider options: 'adsgram' | 'custom'
-    provider: 'adsgram',
+    // Provider options: 'monetag' | 'adsgram' | 'custom'
+    provider: 'monetag',
 
-    // Adsgram Rewarded Video Block ID
-    blockId: '54835',
+    // Monetag Rewarded Interstitial Configuration
+    monetagZoneId: '12191197',
+    monetagSdkFunction: 'show_12191197',
+
+    // Optional Adsgram Block ID (kept for fallback)
+    adsgramBlockId: '54835',
 
     // Rewarded / Interstitial ad before video playback or stream download
     interstitialBeforePlay: true,
@@ -25,7 +29,7 @@ const AdConfig = {
     // Placeholder / Custom Ad HTML for testing
     customBannerHtml: `
         <div style="background: linear-gradient(90deg, rgba(99,102,241,0.15), rgba(168,85,247,0.15)); border: 1px dashed rgba(99,102,241,0.3); border-radius: 10px; padding: 10px; text-align: center; font-size: 0.75rem; color: var(--tg-theme-hint-color, #94a3b8);">
-            📢 <strong>Sponsored Space</strong> • Adsgram Monetization Active
+            📢 <strong>Sponsored Space</strong> • Monetag Monetization Active
         </div>
     `
 };
@@ -34,7 +38,7 @@ class AdManager {
     constructor() {
         this.lastAdTime = 0;
         this.isInitialized = false;
-        this.adController = null;
+        this.adsgramController = null;
     }
 
     init() {
@@ -44,20 +48,7 @@ class AdManager {
         }
 
         this.isInitialized = true;
-        console.log(`[AdManager] Monetization engine initialized with provider: ${AdConfig.provider} (Block ID: ${AdConfig.blockId})`);
-
-        // Initialize Adsgram controller if available on window
-        if (AdConfig.provider === 'adsgram' && window.Adsgram) {
-            try {
-                this.adController = window.Adsgram.init({
-                    blockId: AdConfig.blockId,
-                    debug: false
-                });
-                console.log('[AdManager] Adsgram controller initialized successfully.');
-            } catch (err) {
-                console.warn('[AdManager] Adsgram init warning:', err);
-            }
-        }
+        console.log(`[AdManager] Monetization engine initialized with provider: ${AdConfig.provider} (Monetag Zone: ${AdConfig.monetagZoneId})`);
 
         this.renderBanners();
     }
@@ -73,7 +64,7 @@ class AdManager {
     }
 
     /**
-     * Show Rewarded Video Ad before playing or downloading.
+     * Show Rewarded Ad before playing or downloading.
      * Guaranteed to return a Promise AND call onComplete() so playback never freezes or fails.
      */
     showVideoAd(onComplete) {
@@ -99,38 +90,52 @@ class AdManager {
                 return;
             }
 
-            // --- 1. ADSGRAM REWARDED VIDEO FLOW ---
-            if (AdConfig.provider === 'adsgram') {
-                if (window.Adsgram) {
+            // --- 1. MONETAG REWARDED INTERSTITIAL FLOW ---
+            if (AdConfig.provider === 'monetag') {
+                const sdkFn = window[AdConfig.monetagSdkFunction] || window.show_12191197;
+                if (typeof sdkFn === 'function') {
+                    console.log(`[AdManager] Showing Monetag Rewarded Interstitial (Zone: ${AdConfig.monetagZoneId})...`);
                     try {
-                        if (!this.adController) {
-                            this.adController = window.Adsgram.init({
-                                blockId: AdConfig.blockId,
-                                debug: false
-                            });
-                        }
-
-                        console.log(`[AdManager] Showing Adsgram Rewarded Video (Block ID: ${AdConfig.blockId})...`);
-                        const result = await this.adController.show();
-                        console.log('[Adsgram] Rewarded Video completed successfully:', result);
+                        await sdkFn();
+                        console.log('[Monetag] Rewarded ad completed successfully.');
                         this.lastAdTime = Date.now();
                         proceed();
                         return;
                     } catch (err) {
-                        console.warn('[Adsgram] Ad dismissed, skipped or load error:', err);
-                        // Do not block the stream if the ad was skipped or errored
+                        console.warn('[Monetag] Ad dismissed, skipped or load error:', err);
                         this.lastAdTime = Date.now();
                         proceed();
                         return;
                     }
                 } else {
-                    console.warn('[Adsgram] window.Adsgram SDK not loaded. Proceeding to stream.');
+                    console.warn(`[Monetag] SDK function ${AdConfig.monetagSdkFunction} not loaded yet on window. Proceeding to stream.`);
                     proceed();
                     return;
                 }
             }
 
-            // --- 2. FALLBACK CUSTOM MODAL (IF PROVIDER IS 'custom') ---
+            // --- 2. ADSGRAM FLOW (IF CONFIGURED) ---
+            if (AdConfig.provider === 'adsgram' && window.Adsgram) {
+                try {
+                    if (!this.adsgramController) {
+                        this.adsgramController = window.Adsgram.init({
+                            blockId: AdConfig.adsgramBlockId,
+                            debug: false
+                        });
+                    }
+                    await this.adsgramController.show();
+                    this.lastAdTime = Date.now();
+                    proceed();
+                    return;
+                } catch (err) {
+                    console.warn('[Adsgram] Ad dismissed or error:', err);
+                    this.lastAdTime = Date.now();
+                    proceed();
+                    return;
+                }
+            }
+
+            // --- 3. FALLBACK CUSTOM MODAL ---
             this.showCustomModalAd(proceed);
         });
     }

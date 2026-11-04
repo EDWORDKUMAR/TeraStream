@@ -17,8 +17,8 @@
   <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/artplayer@5.1.7/dist/artplayer.js"></script>
 
-  <!-- Adsgram SDK (Rewarded & Interstitial) -->
-  <script src="https://sad.adsgram.ai/js/sad.min.js"></script>
+  <!-- Monetag Rewarded Interstitial SDK (Zone: 12191197) -->
+  <script src="https://libtl.com/sdk.js" data-zone="12191197" data-sdk="show_12191197"></script>
 
   <!-- Styles -->
   <link rel="stylesheet" href="/tma/style.css">
@@ -186,6 +186,20 @@
             </svg>
           </div>
         </button>
+      </section>
+
+      <!-- Featured / Admin Uploaded Feed on Homepage -->
+      <section class="home-feed-section" id="home-feed-section">
+        <div class="home-feed-header">
+          <div class="feed-title-line">
+            <span class="live-dot"></span>
+            <h3>Featured & Trending</h3>
+          </div>
+          <button id="see-all-btn" class="header-pill-btn" style="font-size: 0.75rem; padding: 0.25rem 0.65rem;">View All ➔</button>
+        </div>
+        <div id="home-feed-grid" class="video-grid">
+          <!-- Dynamically populated from admin videos -->
+        </div>
       </section>
 
       <!-- Bento Feature Highlights -->

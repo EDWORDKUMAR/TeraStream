@@ -48,6 +48,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const categoryTabs = document.getElementById('category-tabs');
     const tabButtons = categoryTabs.querySelectorAll('.tab-btn');
     const videoGrid = document.getElementById('video-grid');
+    const homeFeedSection = document.getElementById('home-feed-section');
+    const homeFeedGrid = document.getElementById('home-feed-grid');
+    const seeAllBtn = document.getElementById('see-all-btn');
+    if (seeAllBtn) {
+        seeAllBtn.addEventListener('click', () => switchView('viral', 'trending'));
+    }
     const tmaLoading = document.getElementById('tma-loading');
     const tmaEmpty = document.getElementById('tma-empty');
 
@@ -391,73 +397,86 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderViralGrid(videos) {
         videoGrid.innerHTML = '';
+        if (homeFeedGrid) homeFeedGrid.innerHTML = '';
 
         if (!videos || videos.length === 0) {
             tmaEmpty.style.display = 'block';
+            if (homeFeedSection) homeFeedSection.style.display = 'none';
             return;
         }
 
         tmaEmpty.style.display = 'none';
+        if (homeFeedSection) homeFeedSection.style.display = 'block';
 
         videos.forEach(video => {
-            const card = document.createElement('div');
-            card.className = 'tma-card';
-
-            const thumb = video.thumbnail || 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=400&q=80';
-            const badge = video.badge || (activeTab === 'trending' ? '🔥 Trending' : (activeTab === 'popular' ? '⭐ Popular' : '🆕 Latest'));
-
-            card.innerHTML = `
-                <div class="thumb-box">
-                    <img src="${thumb}" class="thumb-img" alt="${video.title}" onerror="this.src='https://images.unsplash.com/photo-1536240478700-b869070f9279?w=400&q=80'">
-                    <span class="badge-top-left">${badge}</span>
-                    <span class="duration-pill">${video.duration || 'HD'}</span>
-                    <div class="play-overlay">
-                        <div class="play-icon-glow">▶</div>
-                    </div>
-                </div>
-                <div class="card-info">
-                    <div class="card-title">${video.title}</div>
-                    <div class="card-meta">
-                        <span>👁️ ${video.views || '15K'} views</span>
-                        <span>💾 ${video.size_formatted || 'HD'}</span>
-                    </div>
-                </div>
-            `;
-
-            card.addEventListener('click', async () => {
-                triggerHaptic('medium');
-
-                // Concurrent Ad + Background Stream Pre-resolution
-                const adPromise = (async () => {
-                    if (window.adManager) {
-                        try { await window.adManager.showVideoAd(); } catch (e) {}
-                    }
-                })();
-
-                const resolvePromise = (async () => {
-                    if (!video.stream_url && video.url) {
-                        try {
-                            const res = await fetch('/api/stream', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ url: video.url })
-                            });
-                            const d = await res.json();
-                            const matched = d.list?.find(x => x.type === 'video') || d.list?.[0];
-                            if (matched) {
-                                video.stream_url = matched.stream_url;
-                                video.fast_stream_url = matched.fast_stream_url;
-                            }
-                        } catch (e) {}
-                    }
-                })();
-
-                await Promise.all([adPromise, resolvePromise]);
-                openModalPlayer(video);
-            });
-
+            const card = createVideoCard(video);
             videoGrid.appendChild(card);
+
+            if (homeFeedGrid) {
+                const homeCard = createVideoCard(video);
+                homeFeedGrid.appendChild(homeCard);
+            }
         });
+    }
+
+    function createVideoCard(video) {
+        const card = document.createElement('div');
+        card.className = 'tma-card';
+
+        const thumb = video.thumbnail || 'https://images.unsplash.com/photo-1536240478700-b869070f9279?w=400&q=80';
+        const badge = video.badge || (activeTab === 'trending' ? '🔥 Trending' : (activeTab === 'popular' ? '⭐ Popular' : '🆕 Latest'));
+
+        card.innerHTML = `
+            <div class="thumb-box">
+                <img src="${thumb}" class="thumb-img" alt="${video.title}" onerror="this.src='https://images.unsplash.com/photo-1536240478700-b869070f9279?w=400&q=80'">
+                <span class="badge-top-left">${badge}</span>
+                <span class="duration-pill">${video.duration || 'HD'}</span>
+                <div class="play-overlay">
+                    <div class="play-icon-glow">▶</div>
+                </div>
+            </div>
+            <div class="card-info">
+                <div class="card-title">${video.title}</div>
+                <div class="card-meta">
+                    <span>👁️ ${video.views || '15K'} views</span>
+                    <span>💾 ${video.size_formatted || 'HD'}</span>
+                </div>
+            </div>
+        `;
+
+        card.addEventListener('click', async () => {
+            triggerHaptic('medium');
+
+            // Concurrent Ad + Background Stream Pre-resolution
+            const adPromise = (async () => {
+                if (window.adManager) {
+                    try { await window.adManager.showVideoAd(); } catch (e) {}
+                }
+            })();
+
+            const resolvePromise = (async () => {
+                if (!video.stream_url && video.url) {
+                    try {
+                        const res = await fetch('/api/stream', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ url: video.url })
+                        });
+                        const d = await res.json();
+                        const matched = d.list?.find(x => x.type === 'video') || d.list?.[0];
+                        if (matched) {
+                            video.stream_url = matched.stream_url;
+                            video.fast_stream_url = matched.fast_stream_url;
+                        }
+                    } catch (e) {}
+                }
+            })();
+
+            await Promise.all([adPromise, resolvePromise]);
+            openModalPlayer(video);
+        });
+
+        return card;
     }
 
     // Modal Player for Viral View Cards
@@ -626,4 +645,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Default start view
     switchView('home');
+    // Preload and render videos immediately on startup for Homepage & Viral Hub
+    loadViralVideos('all');
 });

@@ -1101,3 +1101,25 @@ body {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* Homepage Feed Section */
+.home-feed-section {
+  margin: 1.25rem 1.15rem 1.25rem;
+}
+.home-feed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.85rem;
+}
+.feed-title-line {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.feed-title-line h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-color);
+  letter-spacing: -0.01em;
+}
