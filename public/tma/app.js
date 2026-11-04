@@ -162,7 +162,7 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ==========================================
-    // 🎬 HOMEPAGE: PLAY & DOWNLOAD ACTION
+    // 🎬 HOMEPAGE: PLAY & DOWNLOAD ACTION (CONCURRENT STREAM RESOLVE + AD)
     // ==========================================
     playDownloadBtn.addEventListener('click', () => {
         const url = linkInput.value.trim();
@@ -172,83 +172,106 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         triggerHaptic('medium');
-        processHomeStream(url);
+        startHomeStreamWithAd(url);
     });
 
     linkInput.addEventListener('keypress', (e) => {
         if (e.key === 'Enter') {
             const url = linkInput.value.trim();
-            if (url) processHomeStream(url);
+            if (url) {
+                triggerHaptic('medium');
+                startHomeStreamWithAd(url);
+            }
         }
     });
 
-    async function processHomeStream(url) {
+    async function startHomeStreamWithAd(url) {
+        // 1. Immediately show resolving loader on screen
         homeResolvingLoader.style.display = 'block';
         homePlayerSection.style.display = 'none';
         homeResolvingLoader.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
-        try {
+        // 2. Fetch video data concurrently in the background
+        const fetchPromise = (async () => {
             const res = await fetch('/api/stream', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url })
             });
-
             const data = await res.json();
             if (!res.ok || data.status === 'error' || !data.list || data.list.length === 0) {
                 throw new Error(data.message || 'Failed to extract video from this link.');
             }
+            return data;
+        })();
 
-            const video = data.list.find(f => f.type === 'video') || data.list[0];
-
-            // Populate Video Info
-            homeVideoTitle.textContent = video.name;
-            homeVideoSize.textContent = `💾 ${video.size_formatted || 'N/A'}`;
-            homeVideoDuration.textContent = `⏱️ ${video.duration || 'Video'}`;
-            homeVideoQuality.textContent = `✨ ${video.quality || '1080p HD'}`;
-
-            // Setup Download Buttons Underneath Player
-            const downloadUrl = video.fast_dlink || video.stream_url || video.download_link;
-            homeFastDownloadBtn.href = downloadUrl;
-            homeStdDownloadBtn.href = downloadUrl;
-
-            homeCopyLinkBtn.onclick = () => {
-                triggerHaptic('light');
-                navigator.clipboard.writeText(downloadUrl);
-                const prev = homeCopyLinkBtn.innerHTML;
-                homeCopyLinkBtn.innerHTML = '<span>✅ Stream Link Copied!</span>';
-                setTimeout(() => { homeCopyLinkBtn.innerHTML = prev; }, 2000);
-            };
-
-            // Setup Quality List
-            let qualityList = [];
-            let chosenStreamUrl = video.stream_url;
-
-            if (video.fast_stream_url && typeof video.fast_stream_url === 'object') {
-                const keys = Object.keys(video.fast_stream_url);
-                if (keys.length > 0) {
-                    qualityList = keys.map(q => ({
-                        html: q,
-                        url: video.fast_stream_url[q],
-                        default: q === '360p' || q === '480p'
-                    }));
-                    const chosen = qualityList.find(q => q.default) || qualityList[0];
-                    chosenStreamUrl = chosen.url;
+        // 3. Trigger Adsgram Rewarded Video at the exact same time
+        const adPromise = (async () => {
+            if (window.adManager) {
+                try {
+                    await window.adManager.showVideoAd();
+                } catch (e) {
+                    console.warn('[AdManager] Ad error ignored:', e);
                 }
             }
+        })();
 
-            // Show player container
-            homeResolvingLoader.style.display = 'none';
-            homePlayerSection.style.display = 'block';
-            homePlayerSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-
-            // Initialize ArtPlayer on homepage
-            initHomeArtPlayer(chosenStreamUrl, video.raw_thumbnail || video.thumbnail, qualityList);
-
+        // 4. Wait for both to finish (ad completed/skipped + full video stream resolved in background)
+        try {
+            const [data] = await Promise.all([fetchPromise, adPromise]);
+            renderHomeStream(data);
         } catch (err) {
             homeResolvingLoader.style.display = 'none';
             alert(`Error: ${err.message}`);
         }
+    }
+
+    function renderHomeStream(data) {
+        const video = data.list.find(f => f.type === 'video') || data.list[0];
+
+        // Populate Video Info
+        homeVideoTitle.textContent = video.name;
+        homeVideoSize.textContent = `💾 ${video.size_formatted || 'N/A'}`;
+        homeVideoDuration.textContent = `⏱️ ${video.duration || 'Video'}`;
+        homeVideoQuality.textContent = `✨ ${video.quality || '1080p HD'}`;
+
+        // Setup Download Buttons Underneath Player
+        const downloadUrl = video.fast_dlink || video.stream_url || video.download_link;
+        homeFastDownloadBtn.href = downloadUrl;
+        homeStdDownloadBtn.href = downloadUrl;
+
+        homeCopyLinkBtn.onclick = () => {
+            triggerHaptic('light');
+            navigator.clipboard.writeText(downloadUrl);
+            const prev = homeCopyLinkBtn.innerHTML;
+            homeCopyLinkBtn.innerHTML = '<span>✅ Stream Link Copied!</span>';
+            setTimeout(() => { homeCopyLinkBtn.innerHTML = prev; }, 2000);
+        };
+
+        // Setup Quality List
+        let qualityList = [];
+        let chosenStreamUrl = video.stream_url;
+
+        if (video.fast_stream_url && typeof video.fast_stream_url === 'object') {
+            const keys = Object.keys(video.fast_stream_url);
+            if (keys.length > 0) {
+                qualityList = keys.map(q => ({
+                    html: q,
+                    url: video.fast_stream_url[q],
+                    default: q === '360p' || q === '480p'
+                }));
+                const chosen = qualityList.find(q => q.default) || qualityList[0];
+                chosenStreamUrl = chosen.url;
+            }
+        }
+
+        // Show player container
+        homeResolvingLoader.style.display = 'none';
+        homePlayerSection.style.display = 'block';
+        homePlayerSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        // Initialize ArtPlayer on homepage
+        initHomeArtPlayer(chosenStreamUrl, video.raw_thumbnail || video.thumbnail, qualityList);
     }
 
     function initHomeArtPlayer(streamUrl, poster, qualityList = []) {
@@ -401,16 +424,36 @@ document.addEventListener('DOMContentLoaded', () => {
                 </div>
             `;
 
-            card.addEventListener('click', () => {
+            card.addEventListener('click', async () => {
                 triggerHaptic('medium');
-                // Ad hook before playing
-                if (window.adManager) {
-                    window.adManager.showVideoAd(() => {
-                        openModalPlayer(video);
-                    });
-                } else {
-                    openModalPlayer(video);
-                }
+
+                // Concurrent Ad + Background Stream Pre-resolution
+                const adPromise = (async () => {
+                    if (window.adManager) {
+                        try { await window.adManager.showVideoAd(); } catch (e) {}
+                    }
+                })();
+
+                const resolvePromise = (async () => {
+                    if (!video.stream_url && video.url) {
+                        try {
+                            const res = await fetch('/api/stream', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ url: video.url })
+                            });
+                            const d = await res.json();
+                            const matched = d.list?.find(x => x.type === 'video') || d.list?.[0];
+                            if (matched) {
+                                video.stream_url = matched.stream_url;
+                                video.fast_stream_url = matched.fast_stream_url;
+                            }
+                        } catch (e) {}
+                    }
+                })();
+
+                await Promise.all([adPromise, resolvePromise]);
+                openModalPlayer(video);
             });
 
             videoGrid.appendChild(card);
