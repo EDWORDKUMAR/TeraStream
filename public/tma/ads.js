@@ -1,6 +1,6 @@
 /**
  * Pluggable Ad & Monetization Manager for Telegram Mini App
- * Official Adsgram Rewarded Video Integration (Block ID: 57965)
+ * Official Adsgram Rewarded Video Integration (Block ID: 54835)
  * Documentation: https://docs.adsgram.ai/publisher/reward-interstitial-integration
  */
 
@@ -12,7 +12,7 @@ const AdConfig = {
     provider: 'adsgram',
 
     // Adsgram Rewarded Video Block ID
-    blockId: '57965',
+    blockId: '54835',
 
     // Rewarded / Interstitial ad before video playback or stream download
     interstitialBeforePlay: true,
@@ -110,7 +110,7 @@ class AdManager {
                             });
                         }
 
-                        console.log('[AdManager] Showing Adsgram Rewarded Video (Block ID: 57965)...');
+                        console.log(`[AdManager] Showing Adsgram Rewarded Video (Block ID: ${AdConfig.blockId})...`);
                         const result = await this.adController.show();
                         console.log('[Adsgram] Rewarded Video completed successfully:', result);
                         this.lastAdTime = Date.now();
