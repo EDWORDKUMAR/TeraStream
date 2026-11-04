@@ -38,49 +38,54 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentFiles = [];
     let activeFile = null;
 
-    // --- Cookie Management ---
+    // --- Cookie Management (Safe check) ---
     let userCookie = localStorage.getItem('terabox_ndus_cookie') || '';
-    if (userCookie) {
+    if (userCookie && cookieInput) {
         cookieInput.value = userCookie;
-        cookieStatusBadge.textContent = 'Account Active ✅';
+        if (cookieStatusBadge) cookieStatusBadge.textContent = 'Account Active ✅';
     }
 
-    cookieModalBtn.addEventListener('click', () => {
-        cookieBox.style.display = cookieBox.style.display === 'none' ? 'block' : 'none';
-        if (cookieBox.style.display === 'block') {
-            cookieInput.focus();
-        }
-    });
+    if (cookieModalBtn && cookieBox) {
+        cookieModalBtn.addEventListener('click', () => {
+            cookieBox.style.display = cookieBox.style.display === 'none' ? 'block' : 'none';
+            if (cookieBox.style.display === 'block' && cookieInput) {
+                cookieInput.focus();
+            }
+        });
+    }
 
-    closeCookieBox.addEventListener('click', () => {
-        cookieBox.style.display = 'none';
-    });
+    if (closeCookieBox && cookieBox) {
+        closeCookieBox.addEventListener('click', () => {
+            cookieBox.style.display = 'none';
+        });
+    }
 
-    if (videoLimitBadge) {
+    if (videoLimitBadge && cookieBox) {
         videoLimitBadge.addEventListener('click', () => {
             cookieBox.style.display = 'block';
-            cookieInput.focus();
+            if (cookieInput) cookieInput.focus();
             cookieBox.scrollIntoView({ behavior: 'smooth', block: 'center' });
         });
     }
 
-    saveCookieBtn.addEventListener('click', () => {
-        const val = cookieInput.value.trim();
-        userCookie = val;
-        localStorage.setItem('terabox_ndus_cookie', val);
-        if (val) {
-            cookieStatusBadge.textContent = 'Account Active ✅';
-            alert('TeraBox cookie saved! Now all videos will stream in full length without 30s limit.');
-            cookieBox.style.display = 'none';
-            // Reload current stream if active
-            if (activeFile && urlInput.value) {
-                handleProcess('stream');
+    if (saveCookieBtn && cookieInput) {
+        saveCookieBtn.addEventListener('click', () => {
+            const val = cookieInput.value.trim();
+            userCookie = val;
+            localStorage.setItem('terabox_ndus_cookie', val);
+            if (val) {
+                if (cookieStatusBadge) cookieStatusBadge.textContent = 'Account Active ✅';
+                alert('TeraBox cookie saved! Now all videos will stream in full length without 30s limit.');
+                if (cookieBox) cookieBox.style.display = 'none';
+                if (activeFile && urlInput.value) {
+                    handleProcess('stream');
+                }
+            } else {
+                if (cookieStatusBadge) cookieStatusBadge.textContent = 'Unlock Full Video';
+                alert('Cookie cleared.');
             }
-        } else {
-            cookieStatusBadge.textContent = 'Unlock Full Video';
-            alert('Cookie cleared.');
-        }
-    });
+        });
+    }
 
     // --- Theme Management ---
     const savedTheme = localStorage.getItem('iteraplay_theme') || 'dark';
