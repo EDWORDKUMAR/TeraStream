@@ -3,114 +3,210 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>iTeraPlay TMA - Admin Dashboard</title>
+  <title>TeraStream Console — Admin Command Center</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/admin/admin.css">
 </head>
 <body>
 
-  <!-- Auth Screen (PIN / Key Gate) -->
+  <!-- Subtle Ambient Background Spotlight -->
+  <div class="ambient-backdrop" aria-hidden="true"></div>
+
+  <!-- Auth Screen (Security Vault Gate) -->
   <div id="auth-modal" class="auth-modal">
     <div class="auth-card">
-      <div class="auth-icon">🔐</div>
-      <h2>Admin Authentication</h2>
-      <p>Enter your secret admin key to access the video management panel.</p>
-      <div class="input-group">
-        <input type="password" id="admin-key-input" placeholder="Enter Admin Secret Key..." autocomplete="off">
-        <button id="login-btn" class="btn btn-primary">Login to Panel</button>
+      <div class="auth-badge-top">RESTRICTED ACCESS</div>
+      <div class="auth-icon">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
       </div>
-      <div id="auth-error" class="auth-error" style="display: none;">Invalid secret key. Try again.</div>
-      <div class="auth-hint">Default key: <code>Admin@9001</code> (configure via <code>.env</code> ADMIN_KEY)</div>
+      <h2>Console Authentication</h2>
+      <p>Enter your master security key to unlock the TeraStream media ingestion and catalog console.</p>
+      
+      <div class="input-group">
+        <div class="key-input-wrapper">
+          <svg class="key-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"></path>
+          </svg>
+          <input type="password" id="admin-key-input" placeholder="Enter Admin Secret Key..." autocomplete="off">
+        </div>
+        <button id="login-btn" class="btn btn-primary btn-block">
+          <span>Unlock Console</span>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+            <polyline points="12 5 19 12 12 19"></polyline>
+          </svg>
+        </button>
+      </div>
+
+      <div id="auth-error" class="auth-error" style="display: none;">Invalid secret key. Access denied.</div>
+      <div class="auth-hint">Default key: <code>Admin@9001</code> • Configure via <code>.env</code> ADMIN_KEY</div>
     </div>
   </div>
 
   <!-- Admin Main Dashboard -->
   <div id="dashboard-app" class="dashboard-app" style="display: none;">
-    <!-- Top Nav -->
+    
+    <!-- Top Command Bar -->
     <header class="admin-header">
-      <div class="brand">
-        <div class="brand-icon">⚡</div>
-        <div class="brand-title">
-          <h2>TMA Admin Console</h2>
-          <span>TeraBox Mini App Manager</span>
+      <div class="header-inner">
+        <div class="brand">
+          <div class="brand-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+              <path d="M13 2L4.09 12.63C3.74 13.04 3.57 13.25 3.56 13.43C3.56 13.59 3.63 13.74 3.76 13.84C3.91 13.95 4.18 13.95 4.72 13.95H12L11 22L19.91 11.37C20.26 10.96 20.43 10.75 20.44 10.57C20.44 10.41 20.37 10.26 20.24 10.16C20.09 10.05 19.82 10.05 19.28 10.05H12L13 2Z" fill="currentColor"/>
+            </svg>
+          </div>
+          <div class="brand-title">
+            <div class="brand-name-row">
+              <h2>TeraStream</h2>
+              <span class="console-chip">ADMIN CONSOLE</span>
+            </div>
+            <span>Cloud Media Ingestion & Feed Control</span>
+          </div>
         </div>
-      </div>
-      <div class="header-actions">
-        <a href="/tma" target="_blank" class="btn btn-secondary">📱 Preview Mini App</a>
-        <button id="logout-btn" class="btn btn-outline">Logout</button>
+
+        <div class="header-actions">
+          <div class="system-status">
+            <span class="status-dot"></span>
+            <span>API Online</span>
+          </div>
+          <a href="/tma" target="_blank" class="btn btn-secondary">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+              <polyline points="15 3 21 3 21 9"></polyline>
+              <line x1="10" y1="14" x2="21" y2="3"></line>
+            </svg>
+            <span>Launch Mini App</span>
+          </a>
+          <button id="logout-btn" class="btn btn-outline">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            <span>Lock</span>
+          </button>
+        </div>
       </div>
     </header>
 
     <main class="admin-container">
       
-      <!-- Stats Overview -->
+      <!-- Telemetry Stats Overview -->
       <section class="stats-grid">
         <div class="stat-card">
-          <div class="stat-icon icon-blue">📊</div>
-          <div class="stat-info">
-            <span class="stat-label">Total Videos</span>
+          <div class="stat-top">
+            <span class="stat-label">TOTAL INDEXED</span>
+            <div class="stat-icon icon-blue">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
+                <polyline points="2 17 12 22 22 17"></polyline>
+                <polyline points="2 12 12 17 22 12"></polyline>
+              </svg>
+            </div>
+          </div>
+          <div class="stat-bottom">
             <h3 id="stat-total" class="stat-value">0</h3>
+            <span class="stat-meta">Active streams</span>
           </div>
         </div>
+
         <div class="stat-card">
-          <div class="stat-icon icon-orange">🔥</div>
-          <div class="stat-info">
-            <span class="stat-label">Trending Tab</span>
+          <div class="stat-top">
+            <span class="stat-label">TRENDING FEED</span>
+            <div class="stat-icon icon-orange">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
+              </svg>
+            </div>
+          </div>
+          <div class="stat-bottom">
             <h3 id="stat-trending" class="stat-value">0</h3>
+            <span class="stat-meta">High velocity</span>
           </div>
         </div>
+
         <div class="stat-card">
-          <div class="stat-icon icon-green">🆕</div>
-          <div class="stat-info">
-            <span class="stat-label">Latest Tab</span>
+          <div class="stat-top">
+            <span class="stat-label">LATEST DROPS</span>
+            <div class="stat-icon icon-green">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="9"></circle>
+                <polyline points="12 7 12 12 15.5 14"></polyline>
+              </svg>
+            </div>
+          </div>
+          <div class="stat-bottom">
             <h3 id="stat-latest" class="stat-value">0</h3>
+            <span class="stat-meta"> chronological</span>
           </div>
         </div>
+
         <div class="stat-card">
-          <div class="stat-icon icon-purple">⭐</div>
-          <div class="stat-info">
-            <span class="stat-label">Popular Tab</span>
+          <div class="stat-top">
+            <span class="stat-label">POPULAR PICKS</span>
+            <div class="stat-icon icon-purple">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+              </svg>
+            </div>
+          </div>
+          <div class="stat-bottom">
             <h3 id="stat-popular" class="stat-value">0</h3>
+            <span class="stat-meta">Top rated</span>
           </div>
         </div>
       </section>
 
-      <!-- Add Link Form Card -->
-      <section class="admin-card">
+      <!-- Ingestion Pipeline Card -->
+      <section class="admin-card ingestion-card">
         <div class="card-header">
-          <div>
-            <h3>➕ Add TeraBox Videos to Mini App</h3>
-            <p>Paste a single video link or full folder link. The system extracts title, thumbnail & all videos automatically.</p>
+          <div class="section-title-group">
+            <span class="section-eyebrow">MEDIA INGESTION PIPELINE</span>
+            <h3>Deploy TeraBox Streams to Mini App</h3>
+            <p>Paste any single share URL or multi-file directory link. Metadata, thumbnails, and HLS manifests are resolved automatically.</p>
           </div>
         </div>
 
         <form id="add-video-form" class="add-form">
           <div class="form-row">
             <div class="form-group flex-2">
-              <label for="video-url">TeraBox Share URL (Single File or Folder)</label>
-              <input type="url" id="video-url" class="form-input" placeholder="https://terabox.com/s/... or https://1024terabox.com/s/..." required>
+              <label for="video-url">TeraBox Share URL (Single Video or Folder)</label>
+              <div class="input-with-icon">
+                <svg class="field-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+                </svg>
+                <input type="url" id="video-url" class="form-input has-icon" placeholder="https://terabox.com/s/... or https://1024terabox.com/s/..." required>
+              </div>
             </div>
             
             <div class="form-group flex-1">
-              <label for="video-category">Target Category / Tab</label>
+              <label for="video-category">Destination Feed Tab</label>
               <select id="video-category" class="form-select">
-                <option value="trending">🔥 Trending Videos</option>
-                <option value="latest">🆕 Latest</option>
-                <option value="popular">⭐ Popular</option>
+                <option value="trending">Trending Feed</option>
+                <option value="latest">Latest Drops</option>
+                <option value="popular">Popular / All-Time</option>
               </select>
             </div>
           </div>
 
           <div class="form-row">
             <div class="form-group flex-2">
-              <label for="custom-title">Custom Title (Optional - for single video)</label>
-              <input type="text" id="custom-title" class="form-input" placeholder="Leave blank to use original video filename">
+              <label for="custom-title">Custom Display Title <span class="label-optional">(Optional override for single file)</span></label>
+              <input type="text" id="custom-title" class="form-input" placeholder="Leave blank to retain original cloud filename...">
             </div>
             <div class="form-group flex-1 flex-end">
               <button type="submit" id="submit-btn" class="btn btn-primary btn-block">
-                <span>🚀 Fetch & Add to Tab</span>
+                <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                <span>Extract & Publish to Feed</span>
               </button>
             </div>
           </div>
@@ -120,8 +216,8 @@
         <div id="fetch-progress" class="fetch-progress" style="display: none;">
           <div class="spinner"></div>
           <div class="progress-text">
-            <strong>Resolving TeraBox Link...</strong>
-            <span>Fetching metadata, video duration & expanding folder items...</span>
+            <strong>Indexing Cloud Directory & Manifest...</strong>
+            <span>Extracting thumbnails, bitrates, duration & expanding nested folder items...</span>
           </div>
         </div>
 
@@ -130,19 +226,26 @@
       </section>
 
       <!-- Video Catalog Table -->
-      <section class="admin-card">
+      <section class="admin-card catalog-card">
         <div class="card-header flex-between">
-          <div>
-            <h3>🎬 Managed Videos Catalog</h3>
-            <p>View, search and manage videos displayed in your Telegram Mini App tabs.</p>
+          <div class="section-title-group">
+            <span class="section-eyebrow">LIVE DATABASE</span>
+            <h3>Managed Stream Catalog</h3>
+            <p>Inspect, filter, or revoke published video streams across your Mini App discovery feeds.</p>
           </div>
           <div class="filter-controls">
-            <input type="text" id="search-input" class="search-input" placeholder="🔍 Search by name...">
-            <select id="filter-category" class="form-select" style="width: auto;">
-              <option value="all">All Tabs</option>
-              <option value="trending">🔥 Trending</option>
-              <option value="latest">🆕 Latest</option>
-              <option value="popular">⭐ Popular</option>
+            <div class="search-box-wrapper">
+              <svg class="search-box-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input type="text" id="search-input" class="search-input" placeholder="Filter by title or filename...">
+            </div>
+            <select id="filter-category" class="form-select filter-select">
+              <option value="all">All Channels</option>
+              <option value="trending">Trending Feed</option>
+              <option value="latest">Latest Drops</option>
+              <option value="popular">Popular Picks</option>
             </select>
           </div>
         </div>
@@ -151,24 +254,30 @@
           <table class="video-table">
             <thead>
               <tr>
-                <th style="width: 80px;">Thumbnail</th>
-                <th>Title / File Info</th>
-                <th style="width: 120px;">Category Tab</th>
-                <th style="width: 100px;">Size</th>
-                <th style="width: 90px;">Duration</th>
-                <th style="width: 120px;">Actions</th>
+                <th style="width: 92px;">Preview</th>
+                <th>Stream Title & Metadata</th>
+                <th style="width: 140px;">Channel Feed</th>
+                <th style="width: 110px;">File Size</th>
+                <th style="width: 105px;">Duration</th>
+                <th style="width: 120px; text-align: right;">Action</th>
               </tr>
             </thead>
             <tbody id="video-table-body">
-              <!-- Dynamically populated -->
+              <!-- Dynamically populated by admin.js -->
             </tbody>
           </table>
         </div>
 
         <div id="empty-state" class="empty-state" style="display: none;">
-          <div class="empty-icon">📭</div>
-          <h4>No videos found</h4>
-          <p>Add single video links or folder links above to populate your Mini App tabs.</p>
+          <div class="empty-icon">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+              <line x1="8" y1="21" x2="16" y2="21"></line>
+              <line x1="12" y1="17" x2="12" y2="21"></line>
+            </svg>
+          </div>
+          <h4>No streams indexed in this view</h4>
+          <p>Use the ingestion pipeline above to deploy single links or folders into your catalog.</p>
         </div>
       </section>
 
