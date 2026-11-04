@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iTeraPlay TMA - Admin Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+
+  <!-- Auth Screen (PIN / Key Gate) -->
+  <div id="auth-modal" class="auth-modal">
+    <div class="auth-card">
+      <div class="auth-icon">🔐</div>
+      <h2>Admin Authentication</h2>
+      <p>Enter your secret admin key to access the video management panel.</p>
+      <div class="input-group">
+        <input type="password" id="admin-key-input" placeholder="Enter Admin Secret Key..." autocomplete="off">
+        <button id="login-btn" class="btn btn-primary">Login to Panel</button>
+      </div>
+      <div id="auth-error" class="auth-error" style="display: none;">Invalid secret key. Try again.</div>
+      <div class="auth-hint">Default key: <code>Admin@9001</code> (configure via <code>.env</code> ADMIN_KEY)</div>
+    </div>
+  </div>
+
+  <!-- Admin Main Dashboard -->
+  <div id="dashboard-app" class="dashboard-app" style="display: none;">
+    <!-- Top Nav -->
+    <header class="admin-header">
+      <div class="brand">
+        <div class="brand-icon">⚡</div>
+        <div class="brand-title">
+          <h2>TMA Admin Console</h2>
+          <span>TeraBox Mini App Manager</span>
+        </div>
+      </div>
+      <div class="header-actions">
+        <a href="/tma" target="_blank" class="btn btn-secondary">📱 Preview Mini App</a>
+        <button id="logout-btn" class="btn btn-outline">Logout</button>
+      </div>
+    </header>
+
+    <main class="admin-container">
+      
+      <!-- Stats Overview -->
+      <section class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon icon-blue">📊</div>
+          <div class="stat-info">
+            <span class="stat-label">Total Videos</span>
+            <h3 id="stat-total" class="stat-value">0</h3>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon icon-orange">🔥</div>
+          <div class="stat-info">
+            <span class="stat-label">Trending Tab</span>
+            <h3 id="stat-trending" class="stat-value">0</h3>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon icon-green">🆕</div>
+          <div class="stat-info">
+            <span class="stat-label">Latest Tab</span>
+            <h3 id="stat-latest" class="stat-value">0</h3>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon icon-purple">⭐</div>
+          <div class="stat-info">
+            <span class="stat-label">Popular Tab</span>
+            <h3 id="stat-popular" class="stat-value">0</h3>
+          </div>
+        </div>
+      </section>
+
+      <!-- Add Link Form Card -->
+      <section class="admin-card">
+        <div class="card-header">
+          <div>
+            <h3>➕ Add TeraBox Videos to Mini App</h3>
+            <p>Paste a single video link or full folder link. The system extracts title, thumbnail & all videos automatically.</p>
+          </div>
+        </div>
+
+        <form id="add-video-form" class="add-form">
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="video-url">TeraBox Share URL (Single File or Folder)</label>
+              <input type="url" id="video-url" class="form-input" placeholder="https://terabox.com/s/... or https://1024terabox.com/s/..." required>
+            </div>
+            
+            <div class="form-group flex-1">
+              <label for="video-category">Target Category / Tab</label>
+              <select id="video-category" class="form-select">
+                <option value="trending">🔥 Trending Videos</option>
+                <option value="latest">🆕 Latest</option>
+                <option value="popular">⭐ Popular</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group flex-2">
+              <label for="custom-title">Custom Title (Optional - for single video)</label>
+              <input type="text" id="custom-title" class="form-input" placeholder="Leave blank to use original video filename">
+            </div>
+            <div class="form-group flex-1 flex-end">
+              <button type="submit" id="submit-btn" class="btn btn-primary btn-block">
+                <span>🚀 Fetch & Add to Tab</span>
+              </button>
+            </div>
+          </div>
+        </form>
+
+        <!-- Progress Indicator -->
+        <div id="fetch-progress" class="fetch-progress" style="display: none;">
+          <div class="spinner"></div>
+          <div class="progress-text">
+            <strong>Resolving TeraBox Link...</strong>
+            <span>Fetching metadata, video duration & expanding folder items...</span>
+          </div>
+        </div>
+
+        <!-- Feedback Alert -->
+        <div id="alert-box" class="alert-box" style="display: none;"></div>
+      </section>
+
+      <!-- Video Catalog Table -->
+      <section class="admin-card">
+        <div class="card-header flex-between">
+          <div>
+            <h3>🎬 Managed Videos Catalog</h3>
+            <p>View, search and manage videos displayed in your Telegram Mini App tabs.</p>
+          </div>
+          <div class="filter-controls">
+            <input type="text" id="search-input" class="search-input" placeholder="🔍 Search by name...">
+            <select id="filter-category" class="form-select" style="width: auto;">
+              <option value="all">All Tabs</option>
+              <option value="trending">🔥 Trending</option>
+              <option value="latest">🆕 Latest</option>
+              <option value="popular">⭐ Popular</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-responsive">
+          <table class="video-table">
+            <thead>
+              <tr>
+                <th style="width: 80px;">Thumbnail</th>
+                <th>Title / File Info</th>
+                <th style="width: 120px;">Category Tab</th>
+                <th style="width: 100px;">Size</th>
+                <th style="width: 90px;">Duration</th>
+                <th style="width: 120px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="video-table-body">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+
+        <div id="empty-state" class="empty-state" style="display: none;">
+          <div class="empty-icon">📭</div>
+          <h4>No videos found</h4>
+          <p>Add single video links or folder links above to populate your Mini App tabs.</p>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script src="/admin/admin.js"></script>
+</body>
+</html>

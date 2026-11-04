@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iTeraPlay Clone – Best TeraBox Video Player & Downloader Online</title>
+  <meta name="description" content="Watch TeraBox videos online with smooth HLS streaming and high-speed direct downloads without installing any application.">
+  
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- ArtPlayer & Hls.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/artplayer/dist/artplayer.js"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+
+  <!-- Ambient Light Effect -->
+  <div class="ambient-glow"></div>
+
+  <!-- Navbar -->
+  <header class="navbar">
+    <a href="/" class="brand">
+      <div class="brand-icon">▶</div>
+      <span>iTera<span class="gradient-text">Play</span></span>
+    </a>
+    <div class="nav-actions">
+      <button id="cookie-modal-btn" class="theme-btn" style="width: auto; padding: 0 0.85rem; border-radius: 999px; gap: 0.35rem; font-size: 0.8rem; font-weight: 600;" title="Unlock Full Video Length">
+        🔑 <span id="cookie-status-badge">Unlock Full Video</span>
+      </button>
+      <button id="theme-toggle" class="theme-btn" title="Toggle Theme" aria-label="Toggle theme">🌙</button>
+    </div>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="container">
+    
+    <!-- Hero Header -->
+    <section class="hero">
+      <div class="hero-badge">⚡ Instant Cloud Streaming & Downloader</div>
+      <h1>Play & Download <span class="gradient-text">TeraBox Videos</span> Online</h1>
+      <p>Watch any TeraBox video with multi-quality adaptive streaming (1080p, 720p, 480p) or get direct high-speed download links without installing the app.</p>
+    </section>
+
+    <!-- Cookie Configuration Box (Collapsible) -->
+    <div id="cookie-box" class="search-card" style="display: none; border-color: rgba(99, 102, 241, 0.4); background: rgba(30, 27, 75, 0.4); margin-bottom: 1.25rem;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+        <h3 style="font-size: 1rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem;">
+          🔑 Unlock Full Video Playback (Bypass 30s Limit)
+        </h3>
+        <button id="close-cookie-box" style="background:none; border:none; color:var(--text-muted); font-size:1.2rem; cursor:pointer;">✕</button>
+      </div>
+      <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.75rem; line-height: 1.4;">
+        TeraBox enforces a 30-second preview limit on anonymous requests. By providing your free TeraBox <strong>ndus</strong> cookie, you unlock full-length streaming for all videos!
+      </p>
+      <div style="display: flex; gap: 0.5rem;">
+        <input type="text" id="cookie-input" class="search-input" style="height: 42px;" placeholder="Paste ndus cookie (e.g. Y3ab... or ndus=Y3ab...)" />
+        <button id="save-cookie-btn" class="btn btn-primary" style="height: 42px; padding: 0 1.25rem; flex: none;">Save</button>
+      </div>
+      <div style="margin-top: 0.6rem; font-size: 0.75rem; color: var(--text-muted);">
+        💡 <strong>How to get ndus in 10s:</strong> Log into <a href="https://terabox.com" target="_blank" style="color:var(--accent-blue);">terabox.com</a> in browser &rarr; Press <code>F12</code> &rarr; Application &rarr; Cookies &rarr; copy value of <code>ndus</code>.
+      </div>
+    </div>
+
+    <!-- Search Input Form -->
+    <section class="search-card">
+      <div class="input-group">
+        <svg class="input-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+        </svg>
+        <input 
+          type="text" 
+          id="url-input" 
+          class="search-input" 
+          placeholder="Paste your TeraBox link here (e.g. https://terabox.com/s/...)"
+          autocomplete="off"
+        />
+        <button id="paste-btn" class="paste-btn">📋 Paste</button>
+      </div>
+
+      <div class="action-buttons">
+        <button id="play-btn" class="btn btn-primary">
+          <span>▶ Watch Video Online</span>
+        </button>
+        <button id="download-btn" class="btn btn-secondary">
+          <span>⬇ Fast Download</span>
+        </button>
+      </div>
+
+      <div class="supported-domains">
+        <span>Supports:</span>
+        <span class="domain-chip">terabox.com</span>
+        <span class="domain-chip">teraboxapp.com</span>
+        <span class="domain-chip">1024terabox.com</span>
+        <span class="domain-chip">mirrobox.com</span>
+        <span class="domain-chip">nephobox.com</span>
+        <span class="domain-chip">4funbox.com</span>
+      </div>
+    </section>
+
+    <!-- Error Banner -->
+    <div id="error-box" class="error-box" style="display: none;">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+      <div id="error-message"></div>
+    </div>
+
+    <!-- Loading Animation (iTeraPlay style) -->
+    <div id="loading-box" class="loading-box" style="display: none;">
+      <div class="cat-avatar">🐱</div>
+      <div style="font-size: 1.1rem; font-weight: 600;">Extracting video stream...</div>
+      <div style="color: var(--text-secondary); font-size: 0.85rem;">
+        Resolving HLS playlist and preparing multi-threaded direct link
+        <span class="loading-dots">
+          <span class="loading-dot"></span>
+          <span class="loading-dot"></span>
+          <span class="loading-dot"></span>
+        </span>
+      </div>
+    </div>
+
+    <!-- Video Player Card -->
+    <section id="player-card" class="player-card" style="display: none;">
+      <div class="player-wrapper">
+        <div id="artplayer-container"></div>
+      </div>
+      
+      <div class="video-info">
+        <div class="video-title-row">
+          <h2 id="video-title" class="video-title">Video Title</h2>
+        </div>
+
+        <div class="badge-row">
+          <span id="video-size" class="badge badge-blue">💾 0 MB</span>
+          <span id="video-duration" class="badge badge-purple">⏱️ 00:00</span>
+          <span id="video-quality" class="badge badge-green">✨ HD</span>
+          <span id="video-limit-badge" class="badge badge-purple" style="display:none; cursor:pointer;">⚡ Preview: Click to Unlock Full</span>
+        </div>
+
+        <div class="download-grid">
+          <a id="fast-download-btn" href="#" class="dl-btn dl-btn-highlight">
+            <span>⚡ High Speed Direct Download</span>
+          </a>
+          <a id="standard-download-btn" href="#" class="dl-btn">
+            <span>📥 Standard Download</span>
+          </a>
+          <button id="copy-link-btn" class="dl-btn">
+            <span>🔗 Copy Stream Link</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Multi-file Playlist / Folder Browser -->
+    <section id="files-card" class="files-card" style="display: none;">
+      <div class="files-header">
+        <h3 style="font-size: 1.1rem; font-weight: 700;">Folder Files (<span id="files-count">0</span>)</h3>
+        <span style="font-size: 0.8rem; color: var(--text-muted);">Click to play or download</span>
+      </div>
+      <div id="files-list" class="files-list"></div>
+    </section>
+
+    <!-- Recent History -->
+    <section id="history-card" class="history-card" style="display: none;">
+      <h3 style="font-size: 1.1rem; font-weight: 700;">Recently Played</h3>
+      <div id="history-grid" class="history-grid"></div>
+    </section>
+
+    <!-- Trending & Category Video Collection -->
+    <section id="collection-section" class="collection-section">
+      <div class="collection-header">
+        <div>
+          <h2 class="section-title">🔥 Trending & Top Video Collections</h2>
+          <p class="section-subtitle">Discover top TeraBox videos category-wise or click to stream instantly</p>
+        </div>
+      </div>
+
+      <!-- Category Filter Pills -->
+      <div id="category-pills" class="category-pills">
+        <button class="cat-pill active" data-category="all">🌟 All Videos</button>
+        <button class="cat-pill" data-category="trending">🔥 Trending</button>
+        <button class="cat-pill" data-category="movies">🎬 Movies & Series</button>
+        <button class="cat-pill" data-category="anime">🎌 Anime</button>
+        <button class="cat-pill" data-category="viral">⚡ Viral Clips</button>
+      </div>
+
+      <!-- Video Cards Grid -->
+      <div id="collection-grid" class="collection-grid">
+        <!-- Dynamically populated via app.js -->
+      </div>
+    </section>
+
+    <!-- Feature Highlights -->
+    <section class="features-grid">
+      <div class="feature-box">
+        <div class="feature-icon">🚀</div>
+        <h3>No App Required</h3>
+        <p>Watch videos directly inside your browser without logging in or downloading the official TeraBox client.</p>
+      </div>
+
+      <div class="feature-box">
+        <div class="feature-icon">🎬</div>
+        <h3>Adaptive HLS Streaming</h3>
+        <p>Smooth playback using HTTP Live Streaming with 1080p, 720p, 480p, and 360p quality switching.</p>
+      </div>
+
+      <div class="feature-box">
+        <div class="feature-icon">⚡</div>
+        <h3>Bypass Speed Limits</h3>
+        <p>Get full bandwidth multi-threaded direct download links with resume and chunk streaming support.</p>
+      </div>
+
+      <div class="feature-box">
+        <div class="feature-icon">📡</div>
+        <h3>Developer REST API</h3>
+        <p>Direct programmatic API access via <code>/api/terabox?url=...</code> to extract file details & stream links.</p>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer>
+    <p>© 2026 iTeraPlay Clone. Built for fast and secure TeraBox video playback.</p>
+  </footer>
+
+  <!-- App Script -->
+  <script src="/js/app.js"></script>
+</body>
+</html>

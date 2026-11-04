@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>TeraBox Streamer - Telegram Mini App</title>
+  
+  <!-- Telegram WebApp JS SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <!-- ArtPlayer & Hls.js -->
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/artplayer@5.1.7/dist/artplayer.js"></script>
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="/tma/style.css">
+</head>
+<body>
+
+  <!-- App Wrapper -->
+  <div class="tma-app">
+    
+    <!-- Top App Bar -->
+    <header class="tma-header">
+      <div class="header-left">
+        <div class="app-logo">
+          <span>⚡</span>
+        </div>
+        <div class="app-info">
+          <h1 class="app-name">Tera<span class="gradient-text">Stream</span></h1>
+          <span id="user-greeting" class="user-greeting">Welcome to Mini App</span>
+        </div>
+      </div>
+      <div class="header-right">
+        <!-- Header button for Viral Videos right before search button -->
+        <button id="header-viral-btn" class="header-pill-btn" title="Browse Viral Videos">
+          <span class="pill-fire">🔥</span>
+          <span>Viral Videos</span>
+        </button>
+        <button id="search-toggle-btn" class="icon-btn" aria-label="Search">🔍</button>
+      </div>
+    </header>
+
+    <!-- Ad Banner Slot (Top) -->
+    <div id="ad-banner-top" class="ad-slot" style="display: none;"></div>
+
+    <!-- ================= VIEW 1: HOMEPAGE (Stream & Download) ================= -->
+    <div id="view-home" class="tma-view active">
+      
+      <!-- Search & Input Card -->
+      <section class="home-search-section">
+        <div class="input-card">
+          <input 
+            type="text" 
+            id="link-input" 
+            class="link-input" 
+            placeholder="Paste your TeraBox link here..."
+            autocomplete="off"
+          />
+          <button id="paste-action-btn" class="mini-btn">📋 Paste</button>
+        </div>
+
+        <!-- Action Button right below search box -->
+        <div class="search-actions-row">
+          <button id="play-download-btn" class="btn-main-action">
+            <span>▶ Play / Download Video</span>
+          </button>
+        </div>
+      </section>
+
+      <!-- Resolving Loader -->
+      <div id="home-resolving-loader" class="tma-loading" style="display: none;">
+        <div class="loader-spinner"></div>
+        <span>Resolving video stream & download links...</span>
+      </div>
+
+      <!-- Inline Video Player Section (Rendered on Search / Play) -->
+      <section id="home-player-section" class="home-player-section" style="display: none;">
+        <div class="home-player-wrapper">
+          <div id="artplayer-home"></div>
+        </div>
+
+        <div class="home-video-info">
+          <h2 id="home-video-title" class="home-video-title">Video Title</h2>
+          
+          <div class="modal-meta-row">
+            <span id="home-video-size" class="meta-pill">💾 0 MB</span>
+            <span id="home-video-duration" class="meta-pill">⏱️ 00:00</span>
+            <span id="home-video-quality" class="meta-pill">✨ 1080p HD</span>
+          </div>
+
+          <!-- Download Options Underneath the Video Player -->
+          <div class="download-section-box">
+            <h4 class="download-heading">📥 Download Video Options</h4>
+            <div class="download-actions-grid">
+              <a id="home-fast-download-btn" href="#" target="_blank" class="tma-btn tma-btn-primary">
+                <span>⚡ High-Speed Direct Download</span>
+              </a>
+              <a id="home-std-download-btn" href="#" target="_blank" class="tma-btn tma-btn-secondary">
+                <span>📥 Standard Download</span>
+              </a>
+              <button id="home-copy-link-btn" class="tma-btn tma-btn-outline">
+                <span>🔗 Copy Stream URL</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Button to Browse Latest Viral Videos (Below Search/Download) -->
+      <section class="browse-viral-banner-section">
+        <button id="browse-viral-btn" class="btn-browse-viral">
+          <div class="browse-left">
+            <div class="browse-icon-fire">🔥</div>
+            <div class="browse-text">
+              <h3>Browse Latest Viral Videos</h3>
+              <p>Explore Trending, Latest & Popular video collections</p>
+            </div>
+          </div>
+          <div class="browse-arrow">➔</div>
+        </button>
+      </section>
+
+      <!-- Feature Highlights -->
+      <section class="quick-tips-card">
+        <div class="tip-item">
+          <span class="tip-icon">🚀</span>
+          <div>
+            <strong>Instant Adaptive Player</strong>
+            <p>Stream in 1080p, 720p, 480p with no lag and zero buffering.</p>
+          </div>
+        </div>
+        <div class="tip-item">
+          <span class="tip-icon">📁</span>
+          <div>
+            <strong>Single & Folder Links</strong>
+            <p>Paste any folder link to stream all video files inside seamlessly.</p>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ================= VIEW 2: DEDICATED VIRAL / EXPLORE PAGE ================= -->
+    <div id="view-viral" class="tma-view" style="display: none;">
+      
+      <!-- Back Navigation Header -->
+      <div class="viral-page-header">
+        <button id="back-to-home-btn" class="btn-back">
+          <span>← Back to Streamer</span>
+        </button>
+        <span class="viral-page-title">🔥 Viral & Trending Hub</span>
+      </div>
+
+      <!-- Main Navigation Tabs (Trending, Latest, Popular) -->
+      <div class="tabs-nav-wrapper">
+        <div class="tabs-nav" id="category-tabs">
+          <button class="tab-btn active" data-tab="trending">
+            <span class="tab-icon">🔥</span>
+            <span class="tab-text">Trending</span>
+          </button>
+          <button class="tab-btn" data-tab="latest">
+            <span class="tab-icon">🆕</span>
+            <span class="tab-text">Latest</span>
+          </button>
+          <button class="tab-btn" data-tab="popular">
+            <span class="tab-icon">⭐</span>
+            <span class="tab-text">Popular</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Video Feed Container -->
+      <div class="viral-feed-container">
+        
+        <!-- Loading State -->
+        <div id="tma-loading" class="tma-loading" style="display: none;">
+          <div class="loader-spinner"></div>
+          <span>Loading videos...</span>
+        </div>
+
+        <!-- Empty State -->
+        <div id="tma-empty" class="tma-empty" style="display: none;">
+          <div class="empty-emoji">🎬</div>
+          <h3>No videos in this tab</h3>
+          <p>Use the Admin Panel to add links to this tab.</p>
+        </div>
+
+        <!-- Video Grid -->
+        <div id="video-grid" class="video-grid">
+          <!-- Dynamically rendered by app.js -->
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Bottom Navigation Bar -->
+    <nav class="bottom-nav">
+      <button class="nav-item active" data-view="home">
+        <span class="nav-icon">🏠</span>
+        <span class="nav-label">Home</span>
+      </button>
+      <button class="nav-item" data-view="viral" data-tab="trending">
+        <span class="nav-icon">🔥</span>
+        <span class="nav-label">Trending</span>
+      </button>
+      <button class="nav-item" data-view="viral" data-tab="latest">
+        <span class="nav-icon">🆕</span>
+        <span class="nav-label">Latest</span>
+      </button>
+      <button class="nav-item" data-view="viral" data-tab="popular">
+        <span class="nav-icon">⭐</span>
+        <span class="nav-label">Popular</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <!-- Video Player Modal Sheet (When clicking a video card from Viral page) -->
+  <div id="player-modal" class="player-modal" style="display: none;">
+    <div class="modal-backdrop" id="modal-backdrop"></div>
+    <div class="modal-content">
+      
+      <!-- Modal Header -->
+      <div class="modal-header">
+        <div class="modal-drag-bar"></div>
+        <button id="modal-close-btn" class="modal-close-btn">✕</button>
+      </div>
+
+      <!-- ArtPlayer Container -->
+      <div class="modal-player-wrapper">
+        <div id="artplayer-tma"></div>
+      </div>
+
+      <!-- Video Info Sheet -->
+      <div class="modal-body">
+        <h2 id="modal-video-title" class="modal-video-title">Video Title</h2>
+        
+        <div class="modal-meta-row">
+          <span id="modal-video-size" class="meta-pill">💾 0 MB</span>
+          <span id="modal-video-duration" class="meta-pill">⏱️ 00:00</span>
+          <span id="modal-video-quality" class="meta-pill">✨ 1080p HD</span>
+          <span id="modal-video-views" class="meta-pill">👁️ 0 views</span>
+        </div>
+
+        <!-- Download & Share Buttons -->
+        <div class="modal-actions-grid">
+          <a id="modal-download-btn" href="#" target="_blank" class="tma-btn tma-btn-primary">
+            <span>⚡ Fast Download</span>
+          </a>
+          <button id="modal-share-btn" class="tma-btn tma-btn-secondary">
+            <span>✈️ Share in Telegram</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Interstitial Ad Modal (Placeholder ready for Monetization) -->
+  <div id="ad-interstitial-modal" class="ad-interstitial-modal" style="display: none;">
+    <div class="ad-card">
+      <div class="ad-header-row">
+        <span class="ad-badge">Sponsored Advertisement</span>
+        <span class="ad-countdown">Skip in <strong id="ad-countdown-timer">3</strong>s</span>
+      </div>
+      <div class="ad-body">
+        <div class="ad-placeholder-graphic">📢</div>
+        <h3>Support Our Free Streaming App</h3>
+        <p>Video will play automatically in a moment. You can configure real monetization in <code>ads.js</code>.</p>
+      </div>
+      <div class="ad-footer">
+        <button id="ad-skip-btn" class="btn-skip" style="display: none;">Skip Ad & Play Video ➔</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="/tma/ads.js"></script>
+  <script src="/tma/app.js"></script>
+</body>
+</html>
