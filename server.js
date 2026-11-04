@@ -22,6 +22,18 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+/**
+ * Health Check Endpoint (For Render Keep-Alive / Cron Monitoring)
+ */
+app.get('/api/health', (req, res) => {
+    return res.status(200).json({
+        status: 'ok',
+        service: 'TeraStream',
+        uptime_seconds: Math.round(process.uptime()),
+        timestamp: new Date().toISOString()
+    });
+});
+
 // History persistence
 const HISTORY_FILE = path.join(__dirname, 'history.json');
 function loadHistory() {
@@ -138,6 +150,13 @@ app.get('/api/tma/videos', (req, res) => {
         total: list.length,
         items: list
     });
+});
+
+/**
+ * Adsgram / TMA S2S Reward Callback Webhook
+ */
+app.all('/api/tma/reward', (req, res) => {
+    return res.status(200).json({ status: 'ok', rewarded: true });
 });
 
 /**
@@ -421,7 +440,8 @@ async function handleStreamProxy(req, res) {
             responseType: 'text'
         });
 
-        const rawM3u8 = upstream.data;
+        let rawM3u8 = upstream.data;
+        let activeCookie = cookie;
 
         if (typeof rawM3u8 === 'string' && rawM3u8.trim().startsWith('{')) {
             console.warn('[Proxy Stream Upstream Warning]:', rawM3u8);
@@ -431,7 +451,38 @@ async function handleStreamProxy(req, res) {
             });
         }
 
-        const rewrittenM3u8 = teraboxService.rewriteM3u8(rawM3u8, streamUrl, referer, cookie);
+        // 🚀 AUTO-UPGRADE TO FULL VIDEO: If TeraBox sent only 30s preview (<= 3 segments), auto-upgrade with verified accounts
+        const segCount = (typeof rawM3u8 === 'string') ? (rawM3u8.match(/#EXTINF:/g) || []).length : 0;
+        if (segCount > 0 && segCount <= 3 && teraboxService.cookiePool && teraboxService.cookiePool.length > 0) {
+            console.log(`[Proxy Stream] Received ${segCount} segments preview. Auto-upgrading to FULL video stream with verified pool...`);
+            for (const altCookie of teraboxService.cookiePool) {
+                if (altCookie === activeCookie) continue;
+                try {
+                    const altHeaders = {
+                        'User-Agent': teraboxService.defaultHeaders['User-Agent'],
+                        'Referer': referer,
+                        'Cookie': teraboxService.formatCookie(altCookie)
+                    };
+                    const altResp = await axios.get(streamUrl, {
+                        headers: altHeaders,
+                        httpsAgent,
+                        timeout: 8000,
+                        responseType: 'text'
+                    });
+                    if (typeof altResp.data === 'string' && altResp.data.includes('#EXTINF:')) {
+                        const altSegCount = (altResp.data.match(/#EXTINF:/g) || []).length;
+                        if (altSegCount > segCount) {
+                            console.log(`[Proxy Stream] Successfully unlocked FULL VIDEO (${altSegCount} segments)!`);
+                            rawM3u8 = altResp.data;
+                            activeCookie = altCookie;
+                            break;
+                        }
+                    }
+                } catch (e) {}
+            }
+        }
+
+        const rewrittenM3u8 = teraboxService.rewriteM3u8(rawM3u8, streamUrl, referer, activeCookie);
 
         res.setHeader('Content-Type', 'application/vnd.apple.mpegurl; charset=utf-8');
         res.setHeader('Access-Control-Allow-Origin', '*');
@@ -556,4 +607,19 @@ app.listen(PORT, () => {
     console.log(`  🔗 Local Web Player: http://localhost:${PORT}`);
     console.log(`  📡 TeraBox REST API: http://localhost:${PORT}/api/terabox?url=...`);
     console.log(`======================================================\n`);
+
+    // ⏰ Render Auto-Keepalive: prevents 15-minute free tier deep sleep
+    const RENDER_EXTERNAL_URL = process.env.RENDER_EXTERNAL_URL || process.env.KEEP_ALIVE_URL;
+    if (RENDER_EXTERNAL_URL) {
+        const PING_INTERVAL = 8 * 60 * 1000; // 8 minutes
+        setInterval(async () => {
+            try {
+                await axios.get(`${RENDER_EXTERNAL_URL}/api/health`, { timeout: 10000 });
+                console.log(`[KeepAlive] Pinged ${RENDER_EXTERNAL_URL}/api/health (Instance awake)`);
+            } catch (e) {
+                console.warn('[KeepAlive] Self-ping error:', e.message);
+            }
+        }, PING_INTERVAL);
+        console.log(`  ⏰ Render Auto-KeepAlive scheduled every 8 mins for: ${RENDER_EXTERNAL_URL}\n`);
+    }
 });
