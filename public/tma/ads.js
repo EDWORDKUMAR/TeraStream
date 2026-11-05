@@ -66,8 +66,10 @@ class AdManager {
     /**
      * Show Rewarded Ad before playing or downloading.
      * Guaranteed to return a Promise AND call onComplete() so playback never freezes or fails.
+     * @param {Function} onComplete Callback when ad completes/dismisses
+     * @param {Boolean} force If true, bypasses any cooldown (useful for Fast Download & Mid-roll ads)
      */
-    showVideoAd(onComplete) {
+    showVideoAd(onComplete, force = false) {
         return new Promise(async (resolve) => {
             const proceed = () => {
                 if (typeof onComplete === 'function') {
@@ -76,7 +78,7 @@ class AdManager {
                 resolve();
             };
 
-            if (!AdConfig.enabled || !AdConfig.interstitialBeforePlay) {
+            if (!AdConfig.enabled) {
                 proceed();
                 return;
             }
@@ -84,7 +86,7 @@ class AdManager {
             const now = Date.now();
             const elapsed = (now - this.lastAdTime) / 1000;
 
-            if (AdConfig.interstitialFrequencySeconds > 0 && elapsed < AdConfig.interstitialFrequencySeconds) {
+            if (!force && AdConfig.interstitialFrequencySeconds > 0 && elapsed < AdConfig.interstitialFrequencySeconds) {
                 console.log(`[AdManager] Cooldown active (${Math.round(elapsed)}s < ${AdConfig.interstitialFrequencySeconds}s), skipping ad.`);
                 proceed();
                 return;

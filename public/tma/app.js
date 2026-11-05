@@ -267,10 +267,19 @@ document.addEventListener('DOMContentLoaded', () => {
         homeVideoDuration.textContent = `⏱️ ${video.duration || 'Video'}`;
         homeVideoQuality.textContent = `✨ ${video.quality || '1080p HD'}`;
 
-        // Setup Download Buttons Underneath Player
+        // Setup Download Buttons Underneath Player with Rewarded Ad Flow
         const downloadUrl = video.fast_dlink || video.stream_url || video.download_link;
-        homeFastDownloadBtn.href = downloadUrl;
-        homeStdDownloadBtn.href = downloadUrl;
+        homeFastDownloadBtn.href = '#';
+        homeFastDownloadBtn.onclick = (e) => {
+            e.preventDefault();
+            handleRewardedDownload(homeFastDownloadBtn, downloadUrl, video.name || 'video.mp4');
+        };
+
+        homeStdDownloadBtn.href = '#';
+        homeStdDownloadBtn.onclick = (e) => {
+            e.preventDefault();
+            handleRewardedDownload(homeStdDownloadBtn, downloadUrl, video.name || 'video.mp4');
+        };
 
         homeCopyLinkBtn.onclick = () => {
             triggerHaptic('light');
@@ -324,10 +333,28 @@ document.addEventListener('DOMContentLoaded', () => {
             autoplay: true,
             pip: true,
             setting: true,
+            playbackRate: true,
+            aspectRatio: true,
+            autoOrientation: true,
             fullscreen: true,
             fullscreenWeb: true,
             theme: '#6366f1',
             quality: qualityList.length > 1 ? qualityList : [],
+            controls: [
+                {
+                    name: 'rotateLandscape',
+                    position: 'right',
+                    index: 10,
+                    html: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                             <rect x="2" y="6" width="20" height="12" rx="2"/>
+                             <path d="M12 2v4M12 18v4"/>
+                           </svg>`,
+                    tooltip: 'Rotate Landscape (Full View)',
+                    click: function (art) {
+                        toggleLandscapeMode(art);
+                    }
+                }
+            ],
             moreVideoAttr: {
                 crossOrigin: 'anonymous',
                 preload: 'auto',
@@ -361,6 +388,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             }
         });
+
+        // Landscape Orientation Listeners
+        homeArtPlayerInstance.on('fullscreen', (state) => handleOrientationChange(homeArtPlayerInstance, state));
+        homeArtPlayerInstance.on('fullscreenWeb', (state) => handleOrientationChange(homeArtPlayerInstance, state));
+
+        // Mid-Roll Ads Tracker (Every 5 Minutes of Active Viewing)
+        attachMidRollAdTracker(homeArtPlayerInstance);
 
         homeArtPlayerInstance.on('restart', (newUrl) => {
             if (homeArtPlayerInstance.hls) {
@@ -546,9 +580,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
         playerModal.style.display = 'flex';
 
-        // Setup Fast Download button in modal
-        const dlLink = video.stream_url ? `/api/proxy/stream.m3u8?url=${encodeURIComponent(video.url)}` : video.url;
-        modalDownloadBtn.href = dlLink;
+        // Setup Fast Download button in modal with Rewarded Ad Flow
+        const dlLink = video.download_link || video.fast_dlink || video.stream_url || video.url;
+        modalDownloadBtn.href = '#';
+        modalDownloadBtn.onclick = (e) => {
+            e.preventDefault();
+            handleRewardedDownload(modalDownloadBtn, dlLink, video.title || 'video.mp4');
+        };
 
         // Telegram Share
         modalShareBtn.onclick = () => {
@@ -630,10 +668,28 @@ document.addEventListener('DOMContentLoaded', () => {
             autoplay: true,
             pip: true,
             setting: true,
+            playbackRate: true,
+            aspectRatio: true,
+            autoOrientation: true,
             fullscreen: true,
             fullscreenWeb: true,
             theme: '#6366f1',
             quality: qualityList.length > 1 ? qualityList : [],
+            controls: [
+                {
+                    name: 'rotateLandscape',
+                    position: 'right',
+                    index: 10,
+                    html: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                             <rect x="2" y="6" width="20" height="12" rx="2"/>
+                             <path d="M12 2v4M12 18v4"/>
+                           </svg>`,
+                    tooltip: 'Rotate Landscape (Full View)',
+                    click: function (art) {
+                        toggleLandscapeMode(art);
+                    }
+                }
+            ],
             moreVideoAttr: {
                 crossOrigin: 'anonymous',
                 preload: 'auto',
@@ -668,6 +724,13 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
+        // Landscape Orientation Listeners
+        modalArtPlayerInstance.on('fullscreen', (state) => handleOrientationChange(modalArtPlayerInstance, state));
+        modalArtPlayerInstance.on('fullscreenWeb', (state) => handleOrientationChange(modalArtPlayerInstance, state));
+
+        // Mid-Roll Ads Tracker (Every 5 Minutes of Active Viewing)
+        attachMidRollAdTracker(modalArtPlayerInstance);
+
         modalArtPlayerInstance.on('restart', (newUrl) => {
             if (modalArtPlayerInstance.hls) {
                 modalArtPlayerInstance.hls.loadSource(newUrl);
@@ -679,10 +742,215 @@ document.addEventListener('DOMContentLoaded', () => {
     function closeModal() {
         triggerHaptic('light');
         if (modalArtPlayerInstance) {
+            const container = modalArtPlayerInstance.template?.$container;
+            if (container) container.classList.remove('art-fullscreen-landscape-fallback');
             try { modalArtPlayerInstance.destroy(false); } catch (e) {}
             modalArtPlayerInstance = null;
         }
+        try {
+            if (screen.orientation?.unlock) screen.orientation.unlock();
+        } catch (e) {}
+        try {
+            if (window.Telegram?.WebApp?.exitFullscreen) window.Telegram.WebApp.exitFullscreen();
+        } catch (e) {}
         playerModal.style.display = 'none';
+    }
+
+    // ==========================================
+    // 📺 ADVANCED PLAYER & LANDSCAPE ORIENTATION ENGINE
+    // ==========================================
+    function handleOrientationChange(art, isFullscreen) {
+        if (!art || !art.template || !art.template.$container) return;
+        const container = art.template.$container;
+
+        if (isFullscreen) {
+            // Request native lock if supported
+            try {
+                if (screen.orientation?.lock) {
+                    screen.orientation.lock('landscape').catch(() => {});
+                }
+            } catch (e) {}
+
+            // Telegram WebApp Fullscreen API
+            try {
+                if (window.Telegram?.WebApp?.requestFullscreen) {
+                    window.Telegram.WebApp.requestFullscreen();
+                }
+            } catch (e) {}
+
+            // Apply landscape rotation if phone is held in portrait
+            if (window.innerHeight > window.innerWidth) {
+                container.classList.add('art-fullscreen-landscape-fallback');
+            }
+        } else {
+            container.classList.remove('art-fullscreen-landscape-fallback');
+            try {
+                if (screen.orientation?.unlock) {
+                    screen.orientation.unlock();
+                }
+            } catch (e) {}
+            try {
+                if (window.Telegram?.WebApp?.exitFullscreen) {
+                    window.Telegram.WebApp.exitFullscreen();
+                }
+            } catch (e) {}
+        }
+    }
+
+    function toggleLandscapeMode(art) {
+        if (!art || !art.template || !art.template.$container) return;
+        const container = art.template.$container;
+        const isLandscape = container.classList.contains('art-fullscreen-landscape-fallback');
+
+        if (!isLandscape) {
+            try {
+                if (screen.orientation?.lock) {
+                    screen.orientation.lock('landscape').catch(() => {});
+                }
+            } catch (e) {}
+            try {
+                if (window.Telegram?.WebApp?.requestFullscreen) {
+                    window.Telegram.WebApp.requestFullscreen();
+                }
+            } catch (e) {}
+
+            if (window.innerHeight > window.innerWidth) {
+                container.classList.add('art-fullscreen-landscape-fallback');
+            } else {
+                art.fullscreen = true;
+            }
+        } else {
+            container.classList.remove('art-fullscreen-landscape-fallback');
+            try {
+                if (screen.orientation?.unlock) {
+                    screen.orientation.unlock();
+                }
+            } catch (e) {}
+            try {
+                if (window.Telegram?.WebApp?.exitFullscreen) {
+                    window.Telegram.WebApp.exitFullscreen();
+                }
+            } catch (e) {}
+            art.fullscreen = false;
+            art.fullscreenWeb = false;
+        }
+    }
+
+    // ==========================================
+    // ⏱️ MID-ROLL AD TRACKER (EVERY 5 MINUTES OF ACTIVE PLAYBACK)
+    // ==========================================
+    function attachMidRollAdTracker(art) {
+        if (!art) return;
+        let activeWatchSeconds = 0;
+        const MID_ROLL_INTERVAL = 5 * 60; // 5 Minutes (300 seconds)
+        let isAdPlaying = false;
+
+        const interval = setInterval(async () => {
+            if (!art || art.isDestroy) {
+                clearInterval(interval);
+                return;
+            }
+
+            // Only increment when video is actively playing (not paused, not buffering)
+            if (art.playing && !isAdPlaying) {
+                activeWatchSeconds++;
+
+                // Trigger ad at 5 minutes
+                if (activeWatchSeconds >= MID_ROLL_INTERVAL) {
+                    activeWatchSeconds = 0;
+                    isAdPlaying = true;
+                    console.log('[Mid-Roll Ad] 5 minutes active playback reached! Pausing and showing ad...');
+
+                    // 1. Pause video
+                    try {
+                        art.pause();
+                    } catch (e) {}
+
+                    try {
+                        art.notice.show = 'Sponsor Ad Break — Resuming video soon...';
+                    } catch (e) {}
+
+                    // 2. Trigger Monetag Rewarded Ad (bypass cooldown)
+                    try {
+                        if (window.adManager) {
+                            await window.adManager.showVideoAd(null, true);
+                        }
+                    } catch (err) {
+                        console.warn('[Mid-Roll Ad] Ad error or dismissed:', err);
+                    } finally {
+                        isAdPlaying = false;
+                        try {
+                            art.notice.show = 'Resuming playback ▶';
+                        } catch (e) {}
+                        // 3. Automatically resume video playback from same spot
+                        setTimeout(() => {
+                            try {
+                                art.play();
+                            } catch (e) {}
+                        }, 500);
+                    }
+                }
+            }
+        }, 1000);
+
+        art.on('destroy', () => {
+            clearInterval(interval);
+        });
+    }
+
+    // ==========================================
+    // ⚡ REWARDED FAST DOWNLOAD HANDLER
+    // ==========================================
+    async function handleRewardedDownload(buttonElement, downloadUrl, fileName = 'video.mp4') {
+        if (!downloadUrl || downloadUrl === '#') {
+            alert('Download link is still generating. Please try again in a moment.');
+            return;
+        }
+        triggerHaptic('medium');
+
+        const originalHtml = buttonElement.innerHTML;
+        buttonElement.style.pointerEvents = 'none';
+        buttonElement.innerHTML = `
+            <span class="btn-spinner"></span>
+            <span>Preparing Full Speed Download...</span>
+        `;
+
+        try {
+            // Show Monetag Rewarded Ad before download starts
+            if (window.adManager) {
+                console.log('[Fast Download] Triggering Monetag Rewarded Ad...');
+                await window.adManager.showVideoAd(null, true);
+            }
+        } catch (e) {
+            console.warn('[Fast Download] Ad dismissed or error:', e);
+        } finally {
+            buttonElement.innerHTML = `
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>Starting Download...</span>
+            `;
+
+            triggerDirectDownload(downloadUrl);
+
+            setTimeout(() => {
+                buttonElement.innerHTML = originalHtml;
+                buttonElement.style.pointerEvents = 'auto';
+            }, 3000);
+        }
+    }
+
+    function triggerDirectDownload(url) {
+        if (!url) return;
+        if (window.Telegram?.WebApp?.openLink) {
+            window.Telegram.WebApp.openLink(url, { try_instant_view: false });
+            return;
+        }
+        const a = document.createElement('a');
+        a.href = url;
+        a.target = '_blank';
+        a.setAttribute('download', '');
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
     }
 
     modalCloseBtn.addEventListener('click', closeModal);
