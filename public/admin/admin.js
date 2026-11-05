@@ -52,6 +52,28 @@ document.addEventListener('DOMContentLoaded', () => {
         adminKeyInput.value = '';
     });
 
+    const clearAllBtn = document.getElementById('clear-all-btn');
+    if (clearAllBtn) {
+        clearAllBtn.addEventListener('click', async () => {
+            if (!confirm('Are you sure you want to completely clear ALL videos from all feeds?')) return;
+            try {
+                const res = await fetch('/api/tma/admin/clear-all', {
+                    method: 'POST',
+                    headers: { 'x-admin-key': adminKey }
+                });
+                const data = await res.json();
+                if (data.status === 'success') {
+                    showAlert('All videos cleared successfully', 'success');
+                    refreshDashboard();
+                } else {
+                    showAlert(data.message || 'Failed to clear videos', 'danger');
+                }
+            } catch (e) {
+                showAlert('Failed to clear videos', 'danger');
+            }
+        });
+    }
+
     async function handleLogin() {
         const key = adminKeyInput.value.trim();
         if (!key) return;
@@ -163,7 +185,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     async function refreshDashboard() {
         try {
-            const res = await fetch(`/api/tma/admin/stats?adminKey=${encodeURIComponent(adminKey)}`);
+            const res = await fetch(`/api/tma/admin/stats?adminKey=${encodeURIComponent(adminKey)}&_t=${Date.now()}`, {
+                cache: 'no-store'
+            });
             const data = await res.json();
             if (data.status === 'success') {
                 renderDashboard(data);
@@ -171,6 +195,64 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {
             console.warn('Dashboard refresh failed:', e);
         }
+    }
+
+    // --- Export Backup JSON ---
+    const exportJsonBtn = document.getElementById('export-json-btn');
+    if (exportJsonBtn) {
+        exportJsonBtn.addEventListener('click', async () => {
+            try {
+                const res = await fetch(`/api/tma/admin/export?adminKey=${encodeURIComponent(adminKey)}&_t=${Date.now()}`);
+                const blob = await res.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'tma_videos.json';
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                showAlert('💾 Backup downloaded! Push this file to your GitHub repo (data/tma_videos.json) to keep it permanently across Render restarts.', 'success');
+            } catch (err) {
+                showAlert('Failed to download backup', 'danger');
+            }
+        });
+    }
+
+    // --- Restore Backup JSON ---
+    const restoreJsonBtn = document.getElementById('restore-json-btn');
+    const restoreFileInput = document.getElementById('restore-file-input');
+    if (restoreJsonBtn && restoreFileInput) {
+        restoreJsonBtn.addEventListener('click', () => restoreFileInput.click());
+        restoreFileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = async (evt) => {
+                try {
+                    const parsed = JSON.parse(evt.target.result);
+                    if (!Array.isArray(parsed)) throw new Error('File must contain a JSON array of videos');
+                    const res = await fetch('/api/tma/admin/restore', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'x-admin-key': adminKey
+                        },
+                        body: JSON.stringify({ videos: parsed })
+                    });
+                    const d = await res.json();
+                    if (d.status === 'success') {
+                        showAlert(`✅ Restored ${d.count} videos successfully!`, 'success');
+                        refreshDashboard();
+                    } else {
+                        throw new Error(d.message);
+                    }
+                } catch (err) {
+                    showAlert(`Failed to restore: ${err.message}`, 'danger');
+                }
+            };
+            reader.readAsText(file);
+            restoreFileInput.value = '';
+        });
     }
 
     // --- Delete Video ---
