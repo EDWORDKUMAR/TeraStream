@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const viewHome = document.getElementById('view-home');
     const viewViral = document.getElementById('view-viral');
     const headerViralBtn = document.getElementById('header-viral-btn');
+    const headerRefreshBtn = document.getElementById('header-refresh-btn');
     const browseViralBtn = document.getElementById('browse-viral-btn');
     const backToHomeBtn = document.getElementById('back-to-home-btn');
     const bottomNavItems = document.querySelectorAll('.bottom-nav .nav-item');
@@ -101,6 +102,8 @@ document.addEventListener('DOMContentLoaded', () => {
             bottomNavItems.forEach(item => {
                 item.classList.toggle('active', item.getAttribute('data-view') === 'home');
             });
+            // Immediately refresh the Home Feed when switching to Home
+            loadHomeFeed();
             window.scrollTo({ top: 0, behavior: 'smooth' });
         } else if (targetView === 'viral') {
             viewHome.style.display = 'none';
@@ -117,6 +120,29 @@ document.addEventListener('DOMContentLoaded', () => {
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
     }
+
+    // Header Refresh button (Instant 1-tap refresh for both feeds)
+    if (headerRefreshBtn) {
+        headerRefreshBtn.addEventListener('click', async () => {
+            triggerHaptic('medium');
+            headerRefreshBtn.classList.add('spinning');
+            await Promise.all([
+                loadHomeFeed(),
+                loadViralVideos(activeTab)
+            ]);
+            setTimeout(() => headerRefreshBtn.classList.remove('spinning'), 500);
+        });
+    }
+
+    // Auto-refresh when user returns to TMA or switches back to Telegram
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            loadHomeFeed();
+            if (currentView === 'viral') {
+                loadViralVideos(activeTab);
+            }
+        }
+    });
 
     // Header Viral button click
     headerViralBtn.addEventListener('click', () => switchView('viral', 'trending'));
@@ -375,10 +401,50 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
+    // --- Dedicated Homepage Feed Loader (Never overwritten by tab switching) ---
+    async function loadHomeFeed() {
+        if (!homeFeedGrid) return;
+        try {
+            const res = await fetch(`/api/tma/videos?category=all&_t=${Date.now()}`, {
+                cache: 'no-store',
+                headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+            });
+            const data = await res.json();
+            if (data.status === 'success' && data.items) {
+                renderHomeFeed(data.items);
+            } else {
+                renderHomeFeed([]);
+            }
+        } catch (e) {
+            console.error('[TMA] Failed to load home feed:', e);
+            renderHomeFeed([]);
+        }
+    }
+
+    function renderHomeFeed(videos) {
+        if (!homeFeedGrid) return;
+        homeFeedGrid.innerHTML = '';
+
+        if (!videos || videos.length === 0) {
+            if (homeFeedSection) homeFeedSection.style.display = 'none';
+            return;
+        }
+
+        if (homeFeedSection) homeFeedSection.style.display = 'block';
+        videos.forEach(video => {
+            const card = createVideoCard(video);
+            homeFeedGrid.appendChild(card);
+        });
+    }
+
+    // --- Dedicated Viral Hub Loader ---
     async function loadViralVideos(category) {
         showViralLoading();
         try {
-            const res = await fetch(`/api/tma/videos?category=${encodeURIComponent(category)}`);
+            const res = await fetch(`/api/tma/videos?category=${encodeURIComponent(category)}&_t=${Date.now()}`, {
+                cache: 'no-store',
+                headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' }
+            });
             const data = await res.json();
 
             if (data.status === 'success' && data.items) {
@@ -397,25 +463,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderViralGrid(videos) {
         videoGrid.innerHTML = '';
-        if (homeFeedGrid) homeFeedGrid.innerHTML = '';
 
         if (!videos || videos.length === 0) {
             tmaEmpty.style.display = 'block';
-            if (homeFeedSection) homeFeedSection.style.display = 'none';
             return;
         }
 
         tmaEmpty.style.display = 'none';
-        if (homeFeedSection) homeFeedSection.style.display = 'block';
-
         videos.forEach(video => {
             const card = createVideoCard(video);
             videoGrid.appendChild(card);
-
-            if (homeFeedGrid) {
-                const homeCard = createVideoCard(video);
-                homeFeedGrid.appendChild(homeCard);
-            }
         });
     }
 
@@ -645,6 +702,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Default start view
     switchView('home');
-    // Preload and render videos immediately on startup for Homepage & Viral Hub
-    loadViralVideos('all');
+    // Preload and render videos immediately on startup with fresh cache-busted fetch
+    loadHomeFeed();
+    loadViralVideos('trending');
 });
