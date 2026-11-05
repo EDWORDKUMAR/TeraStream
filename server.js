@@ -97,10 +97,11 @@ function saveToCollection(videoItem, originalUrl) {
 
 /**
  * Public REST API: GET /api/collection?category=...
+ * Synchronized with TMA Admin Panel curated videos
  */
 app.get('/api/collection', (req, res) => {
     const category = req.query.category || 'all';
-    let list = loadCollection();
+    let list = loadTmaVideos();
     if (category !== 'all') {
         list = list.filter(item => item.category === category);
     }
@@ -116,29 +117,107 @@ app.get('/api/collection', (req, res) => {
 const TMA_VIDEOS_FILE = path.join(__dirname, 'data', 'tma_videos.json');
 const ADMIN_SECRET = process.env.ADMIN_KEY || 'Admin@9001';
 
+// In-Memory Fast Cache (immune to disk I/O race conditions)
+let tmaVideosCache = null;
+
+// Ensure data folder exists
+try {
+    fs.mkdirSync(path.dirname(TMA_VIDEOS_FILE), { recursive: true });
+} catch (e) {}
+
 function loadTmaVideos() {
+    if (Array.isArray(tmaVideosCache)) {
+        return [...tmaVideosCache];
+    }
     try {
         if (fs.existsSync(TMA_VIDEOS_FILE)) {
-            return JSON.parse(fs.readFileSync(TMA_VIDEOS_FILE, 'utf-8'));
+            const raw = fs.readFileSync(TMA_VIDEOS_FILE, 'utf-8').trim();
+            if (raw) {
+                tmaVideosCache = JSON.parse(raw);
+                return [...tmaVideosCache];
+            }
         }
     } catch (e) {
-        console.error('Failed to load TMA videos:', e.message);
+        console.error('Failed to load TMA videos from disk:', e.message);
     }
+    tmaVideosCache = [];
     return [];
 }
 
-function saveTmaVideos(videos) {
-    try {
-        fs.writeFileSync(TMA_VIDEOS_FILE, JSON.stringify(videos, null, 2));
-    } catch (e) {
-        console.error('Failed to save TMA videos:', e.message);
+async function syncToCloudStorage(videos) {
+    // 1. GitHub Auto-Commit (Syncs directly to user repo so Render never loses data across redeploys)
+    const ghToken = process.env.GITHUB_TOKEN;
+    const ghRepo = process.env.GITHUB_REPO; // format: "username/repository"
+    if (ghToken && ghRepo) {
+        try {
+            const targetPath = 'data/tma_videos.json';
+            let sha = null;
+            try {
+                const getRes = await axios.get(`https://api.github.com/repos/${ghRepo}/contents/${targetPath}`, {
+                    headers: { Authorization: `Bearer ${ghToken}`, Accept: 'application/vnd.github.v3+json' },
+                    timeout: 5000
+                });
+                sha = getRes.data?.sha;
+            } catch (e) {
+                // file might not exist in repo yet
+            }
+
+            await axios.put(`https://api.github.com/repos/${ghRepo}/contents/${targetPath}`, {
+                message: `Auto-sync: update TMA videos [${videos.length} items]`,
+                content: Buffer.from(JSON.stringify(videos, null, 2)).toString('base64'),
+                sha: sha || undefined
+            }, {
+                headers: { Authorization: `Bearer ${ghToken}`, Accept: 'application/vnd.github.v3+json' },
+                timeout: 8000
+            });
+            console.log(`[Auto-Sync] Saved ${videos.length} videos to GitHub repo (${ghRepo})!`);
+        } catch (err) {
+            console.error('[Auto-Sync GitHub Error]:', err.response?.data?.message || err.message);
+        }
+    }
+
+    // 2. Upstash Redis / REST KV (if configured in .env)
+    const kvUrl = process.env.UPSTASH_REDIS_REST_URL;
+    const kvToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+    if (kvUrl && kvToken) {
+        try {
+            await axios.post(`${kvUrl}/set/tma_videos`, JSON.stringify(videos), {
+                headers: { Authorization: `Bearer ${kvToken}` },
+                timeout: 5000
+            });
+            console.log(`[Upstash Redis] Synced ${videos.length} videos to cloud KV store.`);
+        } catch (e) {
+            console.error('[Upstash Redis Error]:', e.message);
+        }
     }
 }
 
+function saveTmaVideos(videos) {
+    tmaVideosCache = Array.isArray(videos) ? [...videos] : [];
+    try {
+        fs.mkdirSync(path.dirname(TMA_VIDEOS_FILE), { recursive: true });
+        fs.writeFileSync(TMA_VIDEOS_FILE, JSON.stringify(tmaVideosCache, null, 2));
+    } catch (e) {
+        console.error('Failed to save TMA videos to disk:', e.message);
+    }
+    // Async cloud backup
+    syncToCloudStorage(tmaVideosCache).catch(() => {});
+}
+
+// Initial boot load
+loadTmaVideos();
+
 /**
  * TMA Public API: GET /api/tma/videos?category=trending|latest|popular|all
+ * Zero-cache response to guarantee instant updates in TMA
  */
 app.get('/api/tma/videos', (req, res) => {
+    res.set({
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'Surrogate-Control': 'no-store'
+    });
     const category = req.query.category || 'all';
     let list = loadTmaVideos();
     if (category !== 'all') {
@@ -163,7 +242,12 @@ app.all('/api/tma/reward', (req, res) => {
  * TMA Admin API: Check Auth Middleware
  */
 function verifyAdmin(req, res, next) {
-    const key = req.headers['x-admin-key'] || req.query.adminKey || req.body.adminKey;
+    res.set({
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+    });
+    const key = req.headers['x-admin-key'] || req.query.adminKey || req.body?.adminKey;
     if (key !== ADMIN_SECRET) {
         return res.status(401).json({
             status: 'error',
@@ -293,6 +377,54 @@ app.delete('/api/tma/admin/video/:id', verifyAdmin, (req, res) => {
 });
 
 /**
+ * TMA Admin API: POST /api/tma/admin/clear-all
+ * Clear all videos from catalog in one click
+ */
+app.post('/api/tma/admin/clear-all', verifyAdmin, (req, res) => {
+    try {
+        saveTmaVideos([]);
+        return res.json({
+            status: 'success',
+            message: 'All videos cleared successfully'
+        });
+    } catch (error) {
+        return res.status(500).json({ status: 'error', message: error.message });
+    }
+});
+
+/**
+ * TMA Admin API: GET /api/tma/admin/export
+ * Download tma_videos.json directly to commit to GitHub or save as backup
+ */
+app.get('/api/tma/admin/export', verifyAdmin, (req, res) => {
+    const list = loadTmaVideos();
+    res.setHeader('Content-disposition', 'attachment; filename=tma_videos.json');
+    res.setHeader('Content-type', 'application/json');
+    return res.send(JSON.stringify(list, null, 2));
+});
+
+/**
+ * TMA Admin API: POST /api/tma/admin/restore
+ * Restore videos from an uploaded JSON array
+ */
+app.post('/api/tma/admin/restore', verifyAdmin, (req, res) => {
+    try {
+        const { videos } = req.body;
+        if (!Array.isArray(videos)) {
+            return res.status(400).json({ status: 'error', message: 'Invalid payload: videos must be an array' });
+        }
+        saveTmaVideos(videos);
+        return res.json({
+            status: 'success',
+            message: `Successfully restored ${videos.length} videos!`,
+            count: videos.length
+        });
+    } catch (err) {
+        return res.status(500).json({ status: 'error', message: err.message });
+    }
+});
+
+/**
  * TMA Static UI Routes
  */
 app.use('/tma', express.static(path.join(__dirname, 'public', 'tma')));
@@ -372,10 +504,6 @@ app.post('/api/stream', async (req, res) => {
 
         if (result.list && result.list.length > 0) {
             saveHistory(result.list[0]);
-            const playable = result.list.find(x => x.type === 'video');
-            if (playable) {
-                saveToCollection(playable, url);
-            }
         }
 
         return res.json(result);
