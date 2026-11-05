@@ -79,7 +79,6 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentViralVideos = [];
 
     // Preferred CSS landscape rotation angle (90 or -90) when phone viewport stays portrait
-    // Default 90deg (standard left-hand landscape), user can flip 180° anytime with 1 tap
     let preferredLandscapeAngle = Number(localStorage.getItem('tma_landscape_angle')) || 90;
     if (preferredLandscapeAngle !== 90 && preferredLandscapeAngle !== -90) {
         preferredLandscapeAngle = 90;
@@ -91,7 +90,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const activeArt = modalArtPlayerInstance || homeArtPlayerInstance;
         if (!activeArt || !activeArt._isProLandscape) return;
 
-        // If user tilts phone strongly left (gamma < -45) vs right (gamma > 45)
         if (event.gamma < -45 && preferredLandscapeAngle !== 90) {
             setLandscapeDirection(activeArt, 90, false);
         } else if (event.gamma > 45 && preferredLandscapeAngle !== -90) {
@@ -175,7 +173,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Header Refresh button
     if (headerRefreshBtn) {
         headerRefreshBtn.addEventListener('click', async () => {
             triggerHaptic('medium');
@@ -241,92 +238,59 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     // 🔗 STREAM & DIRECT DOWNLOAD LINK EXTRACTOR HELPERS
     // ==========================================
-    function isShareWebpageUrl(url) {
-        if (!url || typeof url !== 'string') return true;
-        const lower = url.toLowerCase();
-        // TeraBox share pages (/s/... or ?surl=...) are webpages, NOT direct media files
-        if ((lower.includes('/s/') || lower.includes('surl=')) &&
-            !lower.includes('.m3u8') &&
-            !lower.includes('.mp4') &&
-            !lower.includes('fn=') &&
-            !lower.includes('d.pcs.baidu.com') &&
-            !lower.includes('/api/')) {
-            return true;
-        }
-        return false;
-    }
-
     /**
-     * Builds an ordered list of stream URLs without exposing manual quality controls.
-     * Ensures smooth adaptive playback and automatic fallback if any stream URL fails.
+     * Collects all valid stream URLs from the video object without filtering out relative paths (/api/...)
+     * or query-based streaming URLs. Picks smooth default stream automatically (no quality selector UI).
      */
     function extractStreamCandidates(videoObj) {
+        if (!videoObj) return [];
         const candidates = [];
-        const addUrl = (u) => {
-            if (u && typeof u === 'string' && u.startsWith('http') && !isShareWebpageUrl(u)) {
-                if (!candidates.includes(u)) candidates.push(u);
+
+        const addCandidate = (u) => {
+            if (u && typeof u === 'string') {
+                const trimmed = u.trim();
+                if (trimmed && trimmed !== '#' && !candidates.includes(trimmed)) {
+                    candidates.push(trimmed);
+                }
             }
         };
 
-        // 1. Primary adaptive HLS stream_url
-        addUrl(videoObj.stream_url);
-
-        // 2. Fast stream URLs (prioritize smooth HD/SD adaptive streams automatically)
+        // 1. Check fast_stream_url (exactly like original player: prefer 360p/480p/720p first for instant smooth start)
         if (videoObj.fast_stream_url) {
             if (typeof videoObj.fast_stream_url === 'string') {
-                addUrl(videoObj.fast_stream_url);
+                addCandidate(videoObj.fast_stream_url);
             } else if (typeof videoObj.fast_stream_url === 'object') {
-                const preferredOrder = ['720p', '480p', '1080p', '360p'];
-                preferredOrder.forEach(k => {
-                    if (videoObj.fast_stream_url[k]) addUrl(videoObj.fast_stream_url[k]);
+                const priorityKeys = ['480p', '360p', '720p', '1080p'];
+                priorityKeys.forEach(k => {
+                    if (videoObj.fast_stream_url[k]) addCandidate(videoObj.fast_stream_url[k]);
                 });
-                Object.values(videoObj.fast_stream_url).forEach(u => addUrl(u));
+                Object.keys(videoObj.fast_stream_url).forEach(k => {
+                    addCandidate(videoObj.fast_stream_url[k]);
+                });
             }
         }
 
-        // 3. Direct MP4 / binary stream fallbacks (in case HLS manifest fails)
-        addUrl(videoObj.fast_dlink);
-        addUrl(videoObj.download_link);
-        addUrl(videoObj.dlink);
-        addUrl(videoObj.direct_link);
+        // 2. Check primary stream_url
+        addCandidate(videoObj.stream_url);
+
+        // 3. Direct MP4 stream fallbacks if HLS fails
+        addCandidate(videoObj.fast_dlink);
+        addCandidate(videoObj.download_link);
+        addCandidate(videoObj.dlink);
 
         return candidates;
     }
 
     /**
-     * Extracts dedicated Fast and Standard direct file download URLs (never a share webpage or .m3u8 playlist)
+     * Extracts Fast and Standard direct file download URLs
      */
     function extractDirectDownloadLinks(videoObj) {
-        const isDirectFileUrl = (u) => {
-            if (!u || typeof u !== 'string' || !u.startsWith('http')) return false;
-            if (isShareWebpageUrl(u)) return false;
-            if (u.toLowerCase().includes('.m3u8')) return false;
-            return true;
-        };
+        if (!videoObj) return { fastUrl: '', stdUrl: '' };
 
-        const fastCandidates = [
-            videoObj.fast_dlink,
-            videoObj.direct_link,
-            videoObj.download_link,
-            videoObj.dlink
-        ].filter(isDirectFileUrl);
+        const fastUrl = videoObj.fast_dlink || videoObj.download_link || videoObj.dlink || videoObj.stream_url || '';
+        const stdUrl = videoObj.download_link || videoObj.dlink || videoObj.fast_dlink || videoObj.stream_url || '';
 
-        const stdCandidates = [
-            videoObj.download_link,
-            videoObj.dlink,
-            videoObj.fast_dlink,
-            videoObj.direct_link
-        ].filter(isDirectFileUrl);
-
-        // Fallback if backend only returned stream_url (and it's not m3u8)
-        const fallbackStream = (!isShareWebpageUrl(videoObj.stream_url) && videoObj.stream_url && !videoObj.stream_url.includes('.m3u8'))
-            ? videoObj.stream_url
-            : '';
-
-        return {
-            fastUrl: fastCandidates[0] || fallbackStream || '',
-            stdUrl: stdCandidates[0] || fastCandidates[0] || fallbackStream || ''
-        };
+        return { fastUrl, stdUrl };
     }
 
     // ==========================================
@@ -432,7 +396,8 @@ document.addEventListener('DOMContentLoaded', () => {
             triggerHaptic('light');
             const linkToCopy = fastUrl || stdUrl || video.stream_url || '';
             if (linkToCopy) {
-                navigator.clipboard.writeText(linkToCopy);
+                const fullCopyUrl = new URL(linkToCopy, window.location.origin).href;
+                navigator.clipboard.writeText(fullCopyUrl);
                 const prev = homeCopyLinkBtn.innerHTML;
                 homeCopyLinkBtn.innerHTML = '<span>✅ Direct Link Copied!</span>';
                 showDownloadToast('Direct download link copied to clipboard!');
@@ -480,14 +445,6 @@ document.addEventListener('DOMContentLoaded', () => {
         } catch (e) {}
     }
 
-    function isHlsStreamUrl(url) {
-        if (!url || typeof url !== 'string') return false;
-        const lower = url.toLowerCase();
-        if (lower.includes('.mp4') && !lower.includes('.m3u8')) return false;
-        if (lower.includes('.mkv') || lower.includes('.webm')) return false;
-        return lower.includes('.m3u8') || lower.includes('m3u8') || lower.includes('hls') || lower.includes('playlist');
-    }
-
     function createProArtPlayer(containerSelector, candidates, poster, videoTitle = 'Video') {
         const container = document.querySelector(containerSelector);
         if (!container) return null;
@@ -495,35 +452,37 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const validCandidates = Array.isArray(candidates) ? candidates.filter(Boolean) : (candidates ? [candidates] : []);
         if (validCandidates.length === 0) {
-            container.innerHTML = '<div style="color:#cbd5e1; display:flex; align-items:center; justify-content:center; height:100%; font-size:0.85rem; padding:1rem; text-align:center;">Stream is initializing or unavailable. Please use Direct Download below.</div>';
+            container.innerHTML = '<div style="color:#cbd5e1; display:flex; align-items:center; justify-content:center; height:100%; font-size:0.85rem; padding:1rem; text-align:center;">Unable to resolve stream link. Please check the URL or try again.</div>';
             return null;
         }
 
         let currentCandidateIndex = 0;
         const initialUrl = validCandidates[0];
-        const useHlsInitially = isHlsStreamUrl(initialUrl);
 
+        // CRITICAL: Always use type: 'm3u8' by default (just like original working player)
+        // because TeraBox/proxy HLS URLs often do not end with literal ".m3u8".
+        // Inside customType.m3u8, if Hls.js encounters a non-M3U8 direct MP4 stream, it seamlessly falls back to native video.src!
         const art = new Artplayer({
             container: containerSelector,
             url: initialUrl,
-            type: useHlsInitially ? 'm3u8' : 'mp4',
+            type: 'm3u8',
             poster: poster || '',
-            volume: 1.0,
+            volume: 0.95,
             autoplay: true,
             pip: true,
             autoSize: false,
             autoMini: false,
-            setting: false, // Clean pro HUD without cluttered quality/nested popups
+            setting: false,         // Quality & nested settings removed for clean Pro UI
             playbackRate: false,
             aspectRatio: false,
-            autoOrientation: false, // CRITICAL FIX: Disabled ArtPlayer's built-in autoOrientation to prevent 90°+90°=180° opposite-direction bug
-            fullscreen: false,      // Replaced with unified Pro Landscape Fullscreen control
+            autoOrientation: false, // Disabled to prevent 90°+90°=180° opposite-direction bug
+            fullscreen: false,      // Handled by unified Pro Landscape Fullscreen control
             fullscreenWeb: false,
             miniProgressBar: true,
             mutex: true,
             backdrop: true,
             playsInline: true,
-            fastForward: true,      // Long-press 2x speed support
+            fastForward: true,
             lock: false,
             theme: '#ff5533',
             quality: [],            // Quality controls completely removed as requested
@@ -583,12 +542,12 @@ document.addEventListener('DOMContentLoaded', () => {
             moreVideoAttr: {
                 crossOrigin: 'anonymous',
                 preload: 'auto',
-                playsInline: true,
+                playsinline: 'true',
                 'webkit-playsinline': 'true'
             },
             customType: {
                 m3u8: function (video, m3u8Url, artInstance) {
-                    attachSmoothHlsOrFallback(video, m3u8Url, artInstance, validCandidates, () => {
+                    attachSmoothHls(video, m3u8Url, artInstance, () => {
                         currentCandidateIndex++;
                         return validCandidates[currentCandidateIndex] || null;
                     });
@@ -596,25 +555,15 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Attach fallback error handler for direct MP4 streams as well
         art.on('ready', () => {
-            const videoEl = art.template?.$video;
-            if (videoEl) {
-                videoEl.addEventListener('error', () => {
-                    if (currentCandidateIndex + 1 < validCandidates.length) {
-                        currentCandidateIndex++;
-                        const nextUrl = validCandidates[currentCandidateIndex];
-                        console.log('[ProPlayer] Switching to fallback stream source:', nextUrl);
-                        loadCandidateOntoVideo(art, nextUrl, validCandidates, () => {
-                            currentCandidateIndex++;
-                            return validCandidates[currentCandidateIndex] || null;
-                        });
-                    }
-                });
-            }
-
-            // Inject Pro Custom HUD (Center -10s / Play / +10s, Double-Tap Seek, Top Bar, Lock, Rotated Touch Scrubber)
             injectProPlayerHud(art, videoTitle);
+        });
+
+        art.on('restart', (newUrl) => {
+            if (art.hls) {
+                art.hls.loadSource(newUrl);
+                art.hls.startLoad();
+            }
         });
 
         // Mid-Roll Ads Tracker (Every 5 Minutes of Active Viewing)
@@ -624,38 +573,34 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * Attaches Hls.js with smooth adaptive buffer config and automatic fallback to native MP4 or next stream candidate
+     * Attaches Hls.js exactly like original working player with enhanced smooth buffering
+     * and automatic fallback to alternative candidate URLs or native <video> if needed.
      */
-    function attachSmoothHlsOrFallback(video, streamUrl, art, allCandidates, getNextCandidate) {
+    function attachSmoothHls(video, m3u8Url, art, getNextCandidate) {
         if (art.hls) {
             try { art.hls.destroy(); } catch (e) {}
             art.hls = null;
         }
 
-        if (typeof Hls !== 'undefined' && Hls.isSupported() && isHlsStreamUrl(streamUrl)) {
+        if (typeof Hls !== 'undefined' && Hls.isSupported()) {
             const hls = new Hls({
                 enableWorker: true,
-                lowLatencyMode: false,
-                backBufferLength: 60,
                 maxBufferLength: 45,
                 maxMaxBufferLength: 90,
-                maxBufferSize: 60 * 1000 * 1000,
                 maxBufferHole: 0.5,
-                startLevel: -1, // Smooth Auto Bitrate
-                abrEwmaDefaultEstimate: 1200000,
                 manifestLoadingTimeOut: 20000,
                 manifestLoadingMaxRetry: 3,
                 levelLoadingTimeOut: 20000,
                 levelLoadingMaxRetry: 3,
                 fragLoadingTimeOut: 25000,
-                fragLoadingMaxRetry: 5
+                fragLoadingMaxRetry: 4
             });
 
-            hls.loadSource(streamUrl);
+            hls.loadSource(m3u8Url);
             hls.attachMedia(video);
             art.hls = hls;
 
-            let mediaRecoveryAttempts = 0;
+            let mediaRecovered = false;
 
             hls.on(Hls.Events.MANIFEST_PARSED, () => {
                 video.play().catch(() => {});
@@ -664,76 +609,36 @@ document.addEventListener('DOMContentLoaded', () => {
             hls.on(Hls.Events.ERROR, (event, data) => {
                 if (!data.fatal) return;
 
-                switch (data.type) {
-                    case Hls.ErrorTypes.NETWORK_ERROR:
-                        // If manifest failed to load or parse (e.g. URL is actually direct MP4 or expired), fallback!
-                        if (data.details === Hls.ErrorDetails.MANIFEST_LOAD_ERROR ||
-                            data.details === Hls.ErrorDetails.MANIFEST_LOAD_TIMEOUT ||
-                            data.details === Hls.ErrorDetails.MANIFEST_PARSING_ERROR) {
-                            console.warn('[ProPlayer] HLS Manifest failed, trying direct video or next source...');
-                            try { hls.destroy(); } catch (e) {}
-                            art.hls = null;
-                            const nextUrl = getNextCandidate();
-                            if (nextUrl) {
-                                loadCandidateOntoVideo(art, nextUrl, allCandidates, getNextCandidate);
-                            } else {
-                                // Try loading the same URL directly as native MP4 stream
-                                video.src = streamUrl;
-                                video.play().catch(() => {});
-                            }
-                        } else {
-                            hls.startLoad();
-                        }
-                        break;
-                    case Hls.ErrorTypes.MEDIA_ERROR:
-                        if (mediaRecoveryAttempts < 2) {
-                            mediaRecoveryAttempts++;
-                            hls.recoverMediaError();
-                        } else {
-                            const nextUrl = getNextCandidate();
-                            if (nextUrl) {
-                                loadCandidateOntoVideo(art, nextUrl, allCandidates, getNextCandidate);
-                            }
-                        }
-                        break;
-                    default:
-                        try { hls.destroy(); } catch (e) {}
-                        art.hls = null;
-                        const nextUrl = getNextCandidate();
-                        if (nextUrl) {
-                            loadCandidateOntoVideo(art, nextUrl, allCandidates, getNextCandidate);
-                        } else {
-                            video.src = streamUrl;
-                            video.play().catch(() => {});
-                        }
-                        break;
+                if (data.type === Hls.ErrorTypes.MEDIA_ERROR && !mediaRecovered) {
+                    mediaRecovered = true;
+                    hls.recoverMediaError();
+                    return;
+                }
+
+                // If manifest failed to load/parse, try the next candidate URL or native video playback
+                const nextUrl = typeof getNextCandidate === 'function' ? getNextCandidate() : null;
+                if (nextUrl) {
+                    console.log('[ProPlayer] Trying next stream source:', nextUrl);
+                    attachSmoothHls(video, nextUrl, art, getNextCandidate);
+                } else {
+                    // Fallback: try playing the URL directly as native MP4/WebM in case it's not an M3U8 manifest
+                    try { hls.destroy(); } catch (e) {}
+                    art.hls = null;
+                    video.src = m3u8Url;
+                    video.play().catch(() => {});
                 }
             });
 
             art.on('destroy', () => {
                 try { hls.destroy(); } catch (e) {}
             });
-        } else {
-            // Native HLS (iOS Safari) or direct MP4 playback
-            video.src = streamUrl;
+        } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+            video.src = m3u8Url;
             video.addEventListener('loadedmetadata', () => {
                 video.play().catch(() => {});
             }, { once: true });
-        }
-    }
-
-    function loadCandidateOntoVideo(art, url, allCandidates, getNextCandidate) {
-        if (!art || !art.template?.$video || !url) return;
-        const video = art.template.$video;
-        if (isHlsStreamUrl(url) && typeof Hls !== 'undefined' && Hls.isSupported()) {
-            attachSmoothHlsOrFallback(video, url, art, allCandidates, getNextCandidate);
         } else {
-            if (art.hls) {
-                try { art.hls.destroy(); } catch (e) {}
-                art.hls = null;
-            }
-            video.src = url;
-            video.load();
+            video.src = m3u8Url;
             video.play().catch(() => {});
         }
     }
@@ -748,7 +653,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         playerEl.classList.add('fit-contain');
 
-        // 1. Top Pro Bar (Title + Flip 180° + Fit + Speed + Lock + Exit Fullscreen)
+        // 1. Top Pro Bar (Title + Flip 180° + Fit + Lock + Exit Fullscreen)
         const topBar = document.createElement('div');
         topBar.className = 'pro-player-top-bar';
         topBar.innerHTML = `
@@ -904,7 +809,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         fitBtn.addEventListener('click', (e) => {
             e.stopPropagation();
-            cycleVideoFit(art, fitBtn);
+            cycleVideoFit(art, fitBtn.querySelector('span'));
         });
 
         lockBtn.addEventListener('click', (e) => {
@@ -936,7 +841,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let relativePos = 0.5;
             if (isRotatedCss) {
-                // When rotated 90deg or -90deg via CSS, the horizontal axis of the video runs along screen Y
                 const normY = (touch.clientY - rect.top) / Math.max(1, rect.height);
                 relativePos = preferredLandscapeAngle === 90 ? normY : (1 - normY);
             } else {
@@ -964,13 +868,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }, { passive: false });
 
         // 5. Rotated Landscape Touch Scrubber Fix
-        // Ensures dragging/tapping the timeline bar seeks accurately even when CSS-rotated 90deg or -90deg
         const progressEl = playerEl.querySelector('.art-control-progress');
         if (progressEl) {
             const handleRotatedSeek = (e) => {
                 const container = art.template?.$container;
                 if (!container || !container.classList.contains('art-pro-landscape-rotated')) {
-                    return; // Native orientation handles normal horizontal seek
+                    return;
                 }
                 if (!art.duration || art.duration <= 0) return;
 
@@ -986,8 +889,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     ? Math.min(1, Math.max(0, rawRatio))
                     : Math.min(1, Math.max(0, 1 - rawRatio));
 
-                const targetTime = ratio * art.duration;
-                art.seek = targetTime;
+                art.seek = ratio * art.duration;
             };
 
             progressEl.addEventListener('touchstart', handleRotatedSeek, { capture: true, passive: false });
@@ -1013,11 +915,11 @@ document.addEventListener('DOMContentLoaded', () => {
         art.notice.show = `Playback Speed: ${nextSpeed}x`;
     }
 
-    function cycleVideoFit(art, topFitBtn = null) {
+    function cycleVideoFit(art, topFitSpan = null) {
         if (!art || !art.template?.$player) return;
         triggerHaptic('light');
         const playerEl = art.template.$player;
-        const btn = topFitBtn || playerEl.querySelector('.pro-fit-btn span');
+        const btn = topFitSpan || playerEl.querySelector('.pro-fit-btn span');
 
         if (playerEl.classList.contains('fit-contain')) {
             playerEl.classList.remove('fit-contain');
@@ -1063,14 +965,12 @@ document.addEventListener('DOMContentLoaded', () => {
             art._exitFsBtn.style.display = 'inline-flex';
         }
 
-        // Request Telegram Fullscreen if supported
         try {
             if (window.Telegram?.WebApp?.requestFullscreen) {
                 window.Telegram.WebApp.requestFullscreen();
             }
         } catch (e) {}
 
-        // Try native orientation lock if supported by browser/WebView
         try {
             if (screen.orientation?.lock) {
                 screen.orientation.lock('landscape').catch(() => {});
@@ -1080,7 +980,6 @@ document.addEventListener('DOMContentLoaded', () => {
         container.style.setProperty('--landscape-angle', `${preferredLandscapeAngle}deg`);
         syncLandscapeLayout(art);
 
-        // Re-verify layout after WebView fullscreen/orientation transition settles
         setTimeout(() => syncLandscapeLayout(art), 100);
         setTimeout(() => syncLandscapeLayout(art), 300);
 
@@ -1099,7 +998,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // If the phone viewport itself rotated into landscape (width > height), do NOT apply 90deg CSS rotation!
-        // This prevents the opposite-direction / sideways bug on devices where native rotation succeeds.
         if (window.innerWidth > window.innerHeight) {
             container.classList.remove('art-pro-landscape-rotated');
             container.classList.add('art-pro-fullscreen-native');
@@ -1133,17 +1031,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!art) return;
         triggerHaptic('medium');
 
-        // If not yet in landscape fullscreen, enter it first
         if (!art._isProLandscape) {
             enterProLandscape(art);
             return;
         }
 
-        // Toggle between +90deg and -90deg with smooth spring animation
         const nextAngle = preferredLandscapeAngle === 90 ? -90 : 90;
         setLandscapeDirection(art, nextAngle, true);
 
-        // Ensure CSS rotated class is active if user manually flips
         const container = art.template?.$container;
         if (container && window.innerHeight >= window.innerWidth) {
             container.classList.remove('art-pro-fullscreen-native');
@@ -1317,7 +1212,7 @@ document.addEventListener('DOMContentLoaded', () => {
             })();
 
             const resolvePromise = (async () => {
-                if ((!video.stream_url || !video.fast_dlink) && video.url) {
+                if (!video.stream_url && video.url) {
                     try {
                         const res = await fetch('/api/stream', {
                             method: 'POST',
@@ -1357,8 +1252,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         playerModal.style.display = 'flex';
 
-        // If stream or download links still need resolution, resolve now
-        if ((!video.stream_url || (!video.fast_dlink && !video.download_link)) && video.url) {
+        if (!video.stream_url && video.url) {
             try {
                 const res = await fetch('/api/stream', {
                     method: 'POST',
@@ -1507,7 +1401,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 1. Concurrently resolve fresh direct download URL if needed while the Ad is displayed
         const resolveFreshLinkPromise = (async () => {
-            if (downloadUrl && !isShareWebpageUrl(downloadUrl) && !downloadUrl.includes('.m3u8')) {
+            if (downloadUrl && downloadUrl !== '#') {
                 return downloadUrl;
             }
             if (!sourceUrl) return downloadUrl || '';
@@ -1546,7 +1440,7 @@ document.addEventListener('DOMContentLoaded', () => {
             finalDownloadUrl = downloadUrl;
         }
 
-        if (!finalDownloadUrl || finalDownloadUrl === '#' || isShareWebpageUrl(finalDownloadUrl)) {
+        if (!finalDownloadUrl || finalDownloadUrl === '#') {
             buttonElement.innerHTML = originalHtml;
             buttonElement.style.pointerEvents = 'auto';
             buttonElement.disabled = false;
@@ -1578,15 +1472,20 @@ document.addEventListener('DOMContentLoaded', () => {
     function triggerDirectDownload(url, fileName, mode = 'fast') {
         if (!url) return;
 
+        // Ensure full absolute URL for Telegram downloadFile API
+        let absoluteUrl = url;
+        try {
+            absoluteUrl = new URL(url, window.location.origin).href;
+        } catch (e) {}
+
         showDownloadToast(`Starting ${mode === 'fast' ? 'Fast' : 'Standard'} Download: ${fileName}`);
 
         // Method 1: Telegram Native File Download API (Bot API 8.0+)
-        // Downloads directly inside Telegram without opening any browser tab
         if (tg && typeof tg.downloadFile === 'function') {
             try {
-                tg.downloadFile({ url: url, file_name: fileName }, (accepted) => {
+                tg.downloadFile({ url: absoluteUrl, file_name: fileName }, (accepted) => {
                     if (!accepted) {
-                        triggerInAppStreamDownload(url, fileName);
+                        triggerInAppStreamDownload(absoluteUrl, fileName);
                     }
                 });
                 return;
@@ -1596,12 +1495,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Method 2: In-App Hidden Iframe + Direct Download Anchor (No target="_blank", stays inside player)
-        triggerInAppStreamDownload(url, fileName);
+        triggerInAppStreamDownload(absoluteUrl, fileName);
     }
 
     function triggerInAppStreamDownload(url, fileName) {
         try {
-            // 1. Trigger via in-document anchor with download attribute (no target="_blank" so it never opens a blank tab)
             const a = document.createElement('a');
             a.href = url;
             a.setAttribute('download', fileName || 'video.mp4');
@@ -1613,8 +1511,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 try { document.body.removeChild(a); } catch (e) {}
             }, 1500);
 
-            // 2. Also attach a hidden download iframe inside #direct-download-sandbox
-            // For CDN URLs with Content-Disposition: attachment, the WebView immediately starts the native OS download manager
             const sandbox = document.getElementById('direct-download-sandbox');
             if (sandbox) {
                 const iframe = document.createElement('iframe');
