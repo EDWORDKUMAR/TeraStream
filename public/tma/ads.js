@@ -1,35 +1,40 @@
 /**
- * Pluggable Ad & Monetization Manager for Telegram Mini App
+ * Pro Ad & Monetization Manager for Telegram Mini App
  * Official Monetag Rewarded Interstitial Integration (Zone ID: 12191197)
  * SDK: <script src="https://libtl.com/sdk.js" data-zone="12191197" data-sdk="show_12191197"></script>
  */
 
 const AdConfig = {
-    // ⚙️ Set to true to activate ads
+    // ⚙️ Keep enabled to ensure ads run on streams & every download
     enabled: true,
 
-    // Provider options: 'monetag' | 'adsgram' | 'custom'
+    // Primary Provider: 'monetag' | 'adsgram' | 'custom'
     provider: 'monetag',
 
     // Monetag Rewarded Interstitial Configuration
     monetagZoneId: '12191197',
     monetagSdkFunction: 'show_12191197',
+    monetagSdkUrl: 'https://libtl.com/sdk.js',
 
-    // Optional Adsgram Block ID (kept for fallback)
+    // Optional Adsgram Block ID (fallback)
     adsgramBlockId: '54835',
 
-    // Rewarded / Interstitial ad before video playback or stream download
+    // Rewarded / Interstitial ad before video playback & on every download
     interstitialBeforePlay: true,
-    interstitialFrequencySeconds: 0, // 0 = trigger every time (or set e.g. 15 for 15s cooldown)
+    interstitialOnEveryDownload: true,
+    interstitialFrequencySeconds: 0, // 0 = trigger every time without skipping
+
+    // Max timeout (ms) waiting for external ad network before falling back so app never freezes
+    sdkTimeoutMs: 7500,
 
     // Banner ad slots
     bannerTopEnabled: false,
     bannerBottomEnabled: false,
 
-    // Placeholder / Custom Ad HTML for testing
+    // Custom Banner HTML
     customBannerHtml: `
-        <div style="background: linear-gradient(90deg, rgba(99,102,241,0.15), rgba(168,85,247,0.15)); border: 1px dashed rgba(99,102,241,0.3); border-radius: 10px; padding: 10px; text-align: center; font-size: 0.75rem; color: var(--tg-theme-hint-color, #94a3b8);">
-            📢 <strong>Sponsored Space</strong> • Monetag Monetization Active
+        <div style="background: linear-gradient(90deg, rgba(255,85,51,0.14), rgba(255,42,109,0.14)); border: 1px dashed rgba(255,85,51,0.35); border-radius: 12px; padding: 10px 12px; text-align: center; font-size: 0.75rem; color: #cbd5e1;">
+            ⚡ <strong>Sponsored Cloud Bandwidth</strong> • High-Speed Direct Stream Active
         </div>
     `
 };
@@ -39,6 +44,7 @@ class AdManager {
         this.lastAdTime = 0;
         this.isInitialized = false;
         this.adsgramController = null;
+        this.isAdCurrentlyShowing = false;
     }
 
     init() {
@@ -48,9 +54,44 @@ class AdManager {
         }
 
         this.isInitialized = true;
-        console.log(`[AdManager] Monetization engine initialized with provider: ${AdConfig.provider} (Monetag Zone: ${AdConfig.monetagZoneId})`);
-
+        this.ensureMonetagSdkLoaded();
         this.renderBanners();
+        console.log(`[AdManager] Pro Monetization initialized (Provider: ${AdConfig.provider}, Zone: ${AdConfig.monetagZoneId})`);
+    }
+
+    /**
+     * Dynamically ensures the Monetag SDK script is present in the DOM
+     */
+    ensureMonetagSdkLoaded() {
+        if (typeof window[AdConfig.monetagSdkFunction] === 'function' || typeof window.show_12191197 === 'function') {
+            return Promise.resolve(true);
+        }
+
+        return new Promise((resolve) => {
+            let existingScript = document.querySelector(`script[data-zone="${AdConfig.monetagZoneId}"]`);
+            if (!existingScript) {
+                existingScript = document.createElement('script');
+                existingScript.src = AdConfig.monetagSdkUrl;
+                existingScript.setAttribute('data-zone', AdConfig.monetagZoneId);
+                existingScript.setAttribute('data-sdk', AdConfig.monetagSdkFunction);
+                existingScript.async = true;
+                document.head.appendChild(existingScript);
+            }
+
+            // Poll briefly for SDK function to attach to window
+            let attempts = 0;
+            const checkInterval = setInterval(() => {
+                attempts++;
+                const fn = window[AdConfig.monetagSdkFunction] || window.show_12191197;
+                if (typeof fn === 'function') {
+                    clearInterval(checkInterval);
+                    resolve(true);
+                } else if (attempts >= 15) { // 1.5s max wait for script load
+                    clearInterval(checkInterval);
+                    resolve(false);
+                }
+            }, 100);
+        });
     }
 
     renderBanners() {
@@ -64,14 +105,19 @@ class AdManager {
     }
 
     /**
-     * Show Rewarded Ad before playing or downloading.
-     * Guaranteed to return a Promise AND call onComplete() so playback never freezes or fails.
-     * @param {Function} onComplete Callback when ad completes/dismisses
-     * @param {Boolean} force If true, bypasses any cooldown (useful for Fast Download & Mid-roll ads)
+     * Show Rewarded / Interstitial Ad before playing or downloading.
+     * Guaranteed to show an ad on every download (when force = true) and resolve cleanly.
+     * @param {Function|null} onComplete Callback when ad completes/dismisses
+     * @param {Boolean} force If true, bypasses cooldown and guarantees ad execution (used for all downloads)
+     * @param {String} contextLabel Optional label ('download' | 'stream' | 'midroll')
      */
-    showVideoAd(onComplete, force = false) {
+    showVideoAd(onComplete = null, force = true, contextLabel = 'stream') {
         return new Promise(async (resolve) => {
+            let settled = false;
             const proceed = () => {
+                if (settled) return;
+                settled = true;
+                this.isAdCurrentlyShowing = false;
                 if (typeof onComplete === 'function') {
                     try { onComplete(); } catch (e) { console.error('[AdManager] Callback error:', e); }
                 }
@@ -92,26 +138,45 @@ class AdManager {
                 return;
             }
 
+            this.isAdCurrentlyShowing = true;
+
             // --- 1. MONETAG REWARDED INTERSTITIAL FLOW ---
             if (AdConfig.provider === 'monetag') {
+                await this.ensureMonetagSdkLoaded();
                 const sdkFn = window[AdConfig.monetagSdkFunction] || window.show_12191197;
+
                 if (typeof sdkFn === 'function') {
-                    console.log(`[AdManager] Showing Monetag Rewarded Interstitial (Zone: ${AdConfig.monetagZoneId})...`);
+                    console.log(`[AdManager] Triggering Monetag Ad (${contextLabel}, Zone: ${AdConfig.monetagZoneId})...`);
+                    const startTime = Date.now();
                     try {
-                        await sdkFn();
-                        console.log('[Monetag] Rewarded ad completed successfully.');
+                        // Race SDK call against a timeout so a hung network request never locks the app
+                        await Promise.race([
+                            Promise.resolve(sdkFn()),
+                            new Promise((_, reject) => setTimeout(() => reject(new Error('Monetag SDK timeout')), AdConfig.sdkTimeoutMs))
+                        ]);
+                        const durationMs = Date.now() - startTime;
                         this.lastAdTime = Date.now();
+                        console.log(`[Monetag] Ad finished in ${durationMs}ms.`);
+
+                        // If SDK resolved instantaneously (< 250ms) because of adblock or no-fill on a forced action, show fallback modal
+                        if (force && durationMs < 250) {
+                            console.log('[AdManager] Monetag returned instant no-fill; showing built-in sponsored interstitial.');
+                            this.showCustomModalAd(proceed, contextLabel);
+                            return;
+                        }
+
                         proceed();
                         return;
                     } catch (err) {
-                        console.warn('[Monetag] Ad dismissed, skipped or load error:', err);
+                        console.warn('[Monetag] Ad error or no-fill, falling back to built-in sponsored modal:', err);
                         this.lastAdTime = Date.now();
-                        proceed();
+                        // Show built-in sponsored modal if SDK failed to render so user always sees the ad on download/play
+                        this.showCustomModalAd(proceed, contextLabel);
                         return;
                     }
                 } else {
-                    console.warn(`[Monetag] SDK function ${AdConfig.monetagSdkFunction} not loaded yet on window. Proceeding to stream.`);
-                    proceed();
+                    console.warn(`[Monetag] SDK function ${AdConfig.monetagSdkFunction} unavailable. Using fallback sponsored interstitial.`);
+                    this.showCustomModalAd(proceed, contextLabel);
                     return;
                 }
             }
@@ -130,53 +195,86 @@ class AdManager {
                     proceed();
                     return;
                 } catch (err) {
-                    console.warn('[Adsgram] Ad dismissed or error:', err);
-                    this.lastAdTime = Date.now();
-                    proceed();
+                    console.warn('[Adsgram] Ad dismissed or error, using fallback modal:', err);
+                    this.showCustomModalAd(proceed, contextLabel);
                     return;
                 }
             }
 
-            // --- 3. FALLBACK CUSTOM MODAL ---
-            this.showCustomModalAd(proceed);
+            // --- 3. FALLBACK BUILT-IN SPONSORED MODAL ---
+            this.showCustomModalAd(proceed, contextLabel);
         });
     }
 
-    showCustomModalAd(onComplete) {
+    /**
+     * Dedicated helper for Download buttons — ALWAYS shows an ad before starting download
+     */
+    showDownloadAd(onComplete = null) {
+        return this.showVideoAd(onComplete, true, 'download');
+    }
+
+    showCustomModalAd(onComplete, contextLabel = 'stream') {
         this.lastAdTime = Date.now();
         const adModal = document.getElementById('ad-interstitial-modal');
         const adTimerSpan = document.getElementById('ad-countdown-timer');
+        const adCountdownWrap = document.querySelector('.ad-countdown');
         const skipBtn = document.getElementById('ad-skip-btn');
+        const adTitle = document.getElementById('ad-modal-title');
+        const adDesc = document.getElementById('ad-modal-desc');
 
-        if (adModal) {
-            adModal.style.display = 'flex';
-            let secondsLeft = 3;
-            if (adTimerSpan) adTimerSpan.textContent = secondsLeft;
-            if (skipBtn) skipBtn.style.display = 'none';
-
-            const interval = setInterval(() => {
-                secondsLeft--;
-                if (adTimerSpan) adTimerSpan.textContent = secondsLeft;
-                if (secondsLeft <= 0) {
-                    clearInterval(interval);
-                    if (skipBtn) skipBtn.style.display = 'inline-block';
-                }
-            }, 1000);
-
-            const handleClose = () => {
-                clearInterval(interval);
-                adModal.style.display = 'none';
-                if (skipBtn) skipBtn.removeEventListener('click', handleClose);
-                onComplete();
-            };
-
-            if (skipBtn) {
-                skipBtn.addEventListener('click', handleClose);
-            } else {
-                setTimeout(handleClose, 3000);
-            }
-        } else {
+        if (!adModal) {
             onComplete();
+            return;
+        }
+
+        if (adTitle) {
+            adTitle.textContent = contextLabel === 'download'
+                ? 'Unlocking High-Speed Direct Download'
+                : 'Preparing Ultra-Smooth Cloud Stream';
+        }
+        if (adDesc) {
+            adDesc.textContent = contextLabel === 'download'
+                ? 'Your direct file transfer will begin automatically right after this sponsor message.'
+                : 'Connecting to dedicated high-bandwidth edge server for zero-buffer playback.';
+        }
+        if (skipBtn) {
+            skipBtn.textContent = contextLabel === 'download'
+                ? 'Start Direct Download Now ➔'
+                : 'Continue to Video Player ➔';
+        }
+
+        adModal.style.display = 'flex';
+        let secondsLeft = 3;
+        if (adTimerSpan) adTimerSpan.textContent = secondsLeft;
+        if (adCountdownWrap) adCountdownWrap.style.display = 'inline';
+        if (skipBtn) skipBtn.style.display = 'none';
+
+        let closed = false;
+        const finishAd = () => {
+            if (closed) return;
+            closed = true;
+            clearInterval(interval);
+            adModal.style.display = 'none';
+            if (skipBtn) skipBtn.onclick = null;
+            onComplete();
+        };
+
+        const interval = setInterval(() => {
+            secondsLeft--;
+            if (adTimerSpan) adTimerSpan.textContent = Math.max(0, secondsLeft);
+            if (secondsLeft <= 0) {
+                clearInterval(interval);
+                if (adCountdownWrap) adCountdownWrap.style.display = 'none';
+                if (skipBtn) {
+                    skipBtn.style.display = 'inline-block';
+                } else {
+                    finishAd();
+                }
+            }
+        }, 1000);
+
+        if (skipBtn) {
+            skipBtn.onclick = finishAd;
         }
     }
 }

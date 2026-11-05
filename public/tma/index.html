@@ -76,7 +76,7 @@
       <section class="home-search-section">
         <div class="hero-tag-row">
           <span class="hero-eyebrow">CLOUD STREAM ENGINE</span>
-          <span class="hero-status">HLS • 1080P60</span>
+          <span class="hero-status">AUTO ABR • PRO PLAYER</span>
         </div>
         <h2 class="hero-headline">Instant Direct Stream & Extractor</h2>
 
@@ -94,7 +94,7 @@
             placeholder="Paste TeraBox video or folder link..."
             autocomplete="off"
           />
-          <button id="paste-action-btn" class="mini-btn">
+          <button id="paste-action-btn" class="mini-btn" type="button">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
@@ -105,7 +105,7 @@
 
         <!-- Primary Action CTA -->
         <div class="search-actions-row">
-          <button id="play-download-btn" class="btn-main-action">
+          <button id="play-download-btn" class="btn-main-action" type="button">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
               <path d="M6 4.75C6 3.99015 6.81401 3.50768 7.47936 3.87362L20.2066 10.8736C20.8955 11.2525 20.8955 12.2475 20.2066 12.6264L7.47936 19.6264C6.81401 19.9923 6 19.5098 6 18.75V4.75Z"/>
             </svg>
@@ -117,7 +117,7 @@
       <!-- Resolving Loader -->
       <div id="home-resolving-loader" class="tma-loading" style="display: none;">
         <div class="loader-spinner"></div>
-        <span>Bypassing cloud queue & fetching direct HLS manifest...</span>
+        <span>Bypassing cloud queue & fetching direct stream...</span>
       </div>
 
       <!-- Inline Video Player Section (Rendered on Search / Play) -->
@@ -132,34 +132,37 @@
           <div class="modal-meta-row">
             <span id="home-video-size" class="meta-pill">0 MB</span>
             <span id="home-video-duration" class="meta-pill">00:00</span>
-            <span id="home-video-quality" class="meta-pill meta-pill-accent">1080p HD</span>
+            <span id="home-video-quality" class="meta-pill meta-pill-accent">Auto HD</span>
           </div>
 
-          <!-- Download Options Underneath the Video Player -->
+          <!-- Download Options Underneath the Video Player (Buttons instead of target=_blank links) -->
           <div class="download-section-box">
-            <h4 class="download-heading">Direct Extraction</h4>
+            <h4 class="download-heading">
+              <span>Direct File Extraction</span>
+              <span style="color: #ff7b54; font-size: 0.64rem;">INSTANT DL</span>
+            </h4>
             <div class="download-actions-grid">
-              <a id="home-fast-download-btn" href="#" target="_blank" class="tma-btn tma-btn-primary">
+              <button id="home-fast-download-btn" type="button" class="tma-btn tma-btn-primary">
                 <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
                 </svg>
-                <span>High-Speed Direct Download</span>
-              </a>
+                <span>Fast Direct Download</span>
+              </button>
               <div class="secondary-dl-row">
-                <a id="home-std-download-btn" href="#" target="_blank" class="tma-btn tma-btn-secondary">
+                <button id="home-std-download-btn" type="button" class="tma-btn tma-btn-secondary">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                     <polyline points="7 10 12 15 17 10"></polyline>
                     <line x1="12" y1="15" x2="12" y2="3"></line>
                   </svg>
                   <span>Standard DL</span>
-                </a>
-                <button id="home-copy-link-btn" class="tma-btn tma-btn-outline">
+                </button>
+                <button id="home-copy-link-btn" type="button" class="tma-btn tma-btn-outline">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                     <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
                     <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
                   </svg>
-                  <span>Copy Stream URL</span>
+                  <span>Copy Direct Link</span>
                 </button>
               </div>
             </div>
@@ -169,7 +172,7 @@
 
       <!-- Button to Browse Latest Viral Videos -->
       <section class="browse-viral-banner-section">
-        <button id="browse-viral-btn" class="btn-browse-viral">
+        <button id="browse-viral-btn" class="btn-browse-viral" type="button">
           <div class="browse-left">
             <div class="browse-icon-fire">
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
@@ -200,7 +203,7 @@
             <span class="live-dot"></span>
             <h3>Featured & Trending</h3>
           </div>
-          <button id="see-all-btn" class="header-pill-btn" style="font-size: 0.75rem; padding: 0.25rem 0.65rem;">View All ➔</button>
+          <button id="see-all-btn" class="header-pill-btn" type="button" style="font-size: 0.75rem; padding: 0.25rem 0.65rem;">View All ➔</button>
         </div>
         <div id="home-feed-grid" class="video-grid">
           <!-- Dynamically populated from admin videos -->
@@ -217,7 +220,7 @@
           </div>
           <div>
             <strong>Zero-Buffer Bitrate</strong>
-            <p>Adaptive 1080p HLS playback with instant hardware scrubbing.</p>
+            <p>Auto-adaptive HLS & MP4 engine with smooth gesture scrubbing.</p>
           </div>
         </div>
         <div class="tip-item">
@@ -227,8 +230,8 @@
             </svg>
           </div>
           <div>
-            <strong>Full Directory Support</strong>
-            <p>Drop shared multi-file folders to stream episodes sequentially.</p>
+            <strong>Direct File Saver</strong>
+            <p>Instant Fast & Standard direct downloads straight to your device.</p>
           </div>
         </div>
       </section>
@@ -240,7 +243,7 @@
       
       <!-- Back Navigation Header -->
       <div class="viral-page-header">
-        <button id="back-to-home-btn" class="btn-back">
+        <button id="back-to-home-btn" class="btn-back" type="button">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
             <line x1="19" y1="12" x2="5" y2="12"></line>
             <polyline points="12 19 5 12 12 5"></polyline>
@@ -253,13 +256,13 @@
       <!-- Segmented Control Tabs (Trending, Latest, Popular) -->
       <div class="tabs-nav-wrapper">
         <div class="tabs-nav" id="category-tabs">
-          <button class="tab-btn active" data-tab="trending">
+          <button class="tab-btn active" data-tab="trending" type="button">
             <span class="tab-text">Trending</span>
           </button>
-          <button class="tab-btn" data-tab="latest">
+          <button class="tab-btn" data-tab="latest" type="button">
             <span class="tab-text">Latest Drops</span>
           </button>
-          <button class="tab-btn" data-tab="popular">
+          <button class="tab-btn" data-tab="popular" type="button">
             <span class="tab-text">All-Time</span>
           </button>
         </div>
@@ -298,7 +301,7 @@
 
     <!-- Floating Glass Bottom Dock -->
     <nav class="bottom-nav">
-      <button class="nav-item active" data-view="home">
+      <button class="nav-item active" data-view="home" type="button">
         <span class="nav-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
             <path d="M3 9.5L12 3l9 6.5V20a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 20V9.5z"/>
@@ -307,7 +310,7 @@
         </span>
         <span class="nav-label">Studio</span>
       </button>
-      <button class="nav-item" data-view="viral" data-tab="trending">
+      <button class="nav-item" data-view="viral" data-tab="trending" type="button">
         <span class="nav-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
             <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"/>
@@ -315,7 +318,7 @@
         </span>
         <span class="nav-label">Trending</span>
       </button>
-      <button class="nav-item" data-view="viral" data-tab="latest">
+      <button class="nav-item" data-view="viral" data-tab="latest" type="button">
         <span class="nav-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="9"/>
@@ -324,7 +327,7 @@
         </span>
         <span class="nav-label">Latest</span>
       </button>
-      <button class="nav-item" data-view="viral" data-tab="popular">
+      <button class="nav-item" data-view="viral" data-tab="popular" type="button">
         <span class="nav-icon">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">
             <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
@@ -344,7 +347,7 @@
       <!-- Modal Header -->
       <div class="modal-header">
         <div class="modal-drag-bar"></div>
-        <button id="modal-close-btn" class="modal-close-btn" aria-label="Close">
+        <button id="modal-close-btn" class="modal-close-btn" type="button" aria-label="Close">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -364,27 +367,35 @@
         <div class="modal-meta-row">
           <span id="modal-video-size" class="meta-pill">0 MB</span>
           <span id="modal-video-duration" class="meta-pill">00:00</span>
-          <span id="modal-video-quality" class="meta-pill meta-pill-accent">1080p HD</span>
+          <span id="modal-video-quality" class="meta-pill meta-pill-accent">Auto HD</span>
           <span id="modal-video-views" class="meta-pill">0 views</span>
         </div>
 
-        <!-- Download & Share Buttons -->
-        <div class="modal-actions-grid">
-          <a id="modal-download-btn" href="#" target="_blank" class="tma-btn tma-btn-primary">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-              <polyline points="7 10 12 15 17 10"></polyline>
-              <line x1="12" y1="15" x2="12" y2="3"></line>
+        <!-- Download (Fast & Standard) & Share Buttons -->
+        <div class="modal-actions-stack">
+          <button id="modal-download-btn" type="button" class="tma-btn tma-btn-primary">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/>
             </svg>
-            <span>Fast Download</span>
-          </a>
-          <button id="modal-share-btn" class="tma-btn tma-btn-secondary">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-              <line x1="22" y1="2" x2="11" y2="13"></line>
-              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-            </svg>
-            <span>Share on Telegram</span>
+            <span>Fast Direct Download</span>
           </button>
+          <div class="modal-actions-grid">
+            <button id="modal-std-download-btn" type="button" class="tma-btn tma-btn-secondary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <span>Standard DL</span>
+            </button>
+            <button id="modal-share-btn" type="button" class="tma-btn tma-btn-outline">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+              <span>Share</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -404,14 +415,25 @@
             <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
           </svg>
         </div>
-        <h3>High-Speed Cloud Bandwidth</h3>
-        <p>Your direct stream is being prepared. Configure custom ad networks inside <code>ads.js</code>.</p>
+        <h3 id="ad-modal-title">High-Speed Cloud Bandwidth</h3>
+        <p id="ad-modal-desc">Your direct stream or file download is being prepared on our high-speed edge network.</p>
       </div>
       <div class="ad-footer">
-        <button id="ad-skip-btn" class="btn-skip" style="display: none;">Continue to Stream ➔</button>
+        <button id="ad-skip-btn" type="button" class="btn-skip" style="display: none;">Continue ➔</button>
       </div>
     </div>
   </div>
+
+  <!-- Direct Download Toast & Hidden Download Sandbox -->
+  <div id="pro-download-toast" class="pro-download-toast" aria-live="polite">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ff5533" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+      <polyline points="7 10 12 15 17 10"></polyline>
+      <line x1="12" y1="15" x2="12" y2="3"></line>
+    </svg>
+    <span id="pro-download-toast-text">Starting direct download...</span>
+  </div>
+  <div id="direct-download-sandbox" style="display: none; width: 0; height: 0; overflow: hidden;"></div>
 
   <!-- Scripts -->
   <script src="/tma/ads.js"></script>
