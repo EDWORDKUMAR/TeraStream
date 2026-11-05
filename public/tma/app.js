@@ -136,7 +136,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (toastTimer) clearTimeout(toastTimer);
         toastTimer = setTimeout(() => {
             toast.classList.remove('show');
-        }, 3800);
+        }, 4000);
     }
 
     // ==========================================
@@ -238,10 +238,6 @@ document.addEventListener('DOMContentLoaded', () => {
     // ==========================================
     // 🔗 STREAM & DIRECT DOWNLOAD LINK EXTRACTOR HELPERS
     // ==========================================
-    /**
-     * Collects all valid stream URLs from the video object without filtering out relative paths (/api/...)
-     * or query-based streaming URLs. Picks smooth default stream automatically (no quality selector UI).
-     */
     function extractStreamCandidates(videoObj) {
         if (!videoObj) return [];
         const candidates = [];
@@ -255,7 +251,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
-        // 1. Check fast_stream_url (exactly like original player: prefer 360p/480p/720p first for instant smooth start)
+        // 1. Check fast_stream_url (prefer smooth adaptive qualities first)
         if (videoObj.fast_stream_url) {
             if (typeof videoObj.fast_stream_url === 'string') {
                 addCandidate(videoObj.fast_stream_url);
@@ -281,16 +277,85 @@ document.addEventListener('DOMContentLoaded', () => {
         return candidates;
     }
 
+    function isLikelyM3u8Stream(u) {
+        if (!u || typeof u !== 'string') return false;
+        const lower = u.toLowerCase();
+        return lower.includes('.m3u8') || lower.includes('type=m3u8') || lower.includes('method=streaming');
+    }
+
+    function isTeraSharePage(u) {
+        if (!u || typeof u !== 'string') return false;
+        const lower = u.toLowerCase();
+        // Match raw TeraBox share pages like https://1024terabox.com/s/1abc or /sharing/link
+        return (lower.includes('/s/') || lower.includes('/sharing/link')) &&
+               !lower.includes('d.pcs.baidu.com') &&
+               !lower.includes('/api/') &&
+               !lower.includes('fid=') &&
+               !lower.includes('fn=');
+    }
+
     /**
-     * Extracts Fast and Standard direct file download URLs
+     * Extracts dedicated Fast and Standard direct file download URLs.
+     * Prioritizes real binary download links (fast_dlink / download_link / dlink) over stream_url.
      */
     function extractDirectDownloadLinks(videoObj) {
-        if (!videoObj) return { fastUrl: '', stdUrl: '' };
+        if (!videoObj) return { fastUrl: '', stdUrl: '', fallbackStreamUrl: '' };
 
-        const fastUrl = videoObj.fast_dlink || videoObj.download_link || videoObj.dlink || videoObj.stream_url || '';
-        const stdUrl = videoObj.download_link || videoObj.dlink || videoObj.fast_dlink || videoObj.stream_url || '';
+        const isValidDirectLink = (u) => {
+            if (!u || typeof u !== 'string') return false;
+            const t = u.trim();
+            if (!t || t === '#') return false;
+            if (isTeraSharePage(t)) return false;
+            if (isLikelyM3u8Stream(t)) return false;
+            return true;
+        };
 
-        return { fastUrl, stdUrl };
+        const fastDirectCandidates = [
+            videoObj.fast_dlink,
+            videoObj.fast_download_link,
+            videoObj.fast_download_url,
+            videoObj.direct_link,
+            videoObj.download_link,
+            videoObj.dlink,
+            videoObj.download_url,
+            videoObj.file_url
+        ].filter(isValidDirectLink);
+
+        const stdDirectCandidates = [
+            videoObj.download_link,
+            videoObj.dlink,
+            videoObj.download_url,
+            videoObj.std_dlink,
+            videoObj.fast_dlink,
+            videoObj.fast_download_link,
+            videoObj.direct_link,
+            videoObj.file_url
+        ].filter(isValidDirectLink);
+
+        const streamCandidates = extractStreamCandidates(videoObj);
+
+        return {
+            fastUrl: fastDirectCandidates[0] || '',
+            stdUrl: stdDirectCandidates[0] || fastDirectCandidates[0] || '',
+            fallbackStreamUrl: streamCandidates[0] || videoObj.stream_url || ''
+        };
+    }
+
+    /**
+     * Copies all resolved fields from /api/stream item onto a video object
+     */
+    function mergeResolvedVideoFields(targetVideo, matchedItem) {
+        if (!targetVideo || !matchedItem) return;
+        targetVideo.stream_url = matchedItem.stream_url || targetVideo.stream_url;
+        targetVideo.fast_stream_url = matchedItem.fast_stream_url || targetVideo.fast_stream_url;
+        targetVideo.fast_dlink = matchedItem.fast_dlink || matchedItem.fast_download_link || targetVideo.fast_dlink;
+        targetVideo.download_link = matchedItem.download_link || matchedItem.dlink || targetVideo.download_link;
+        targetVideo.dlink = matchedItem.dlink || matchedItem.download_link || targetVideo.dlink;
+        targetVideo.direct_link = matchedItem.direct_link || targetVideo.direct_link;
+        targetVideo.file_url = matchedItem.file_url || targetVideo.file_url;
+        targetVideo.size_formatted = matchedItem.size_formatted || targetVideo.size_formatted;
+        targetVideo.duration = matchedItem.duration || targetVideo.duration;
+        targetVideo.name = matchedItem.name || targetVideo.name;
     }
 
     // ==========================================
@@ -366,7 +431,7 @@ document.addEventListener('DOMContentLoaded', () => {
         homeVideoDuration.textContent = `⏱️ ${video.duration || 'Video'}`;
         homeVideoQuality.textContent = `✨ Auto Smooth HD`;
 
-        const { fastUrl, stdUrl } = extractDirectDownloadLinks(video);
+        const { fastUrl, stdUrl, fallbackStreamUrl } = extractDirectDownloadLinks(video);
 
         // Fast Direct Download Button -> Runs Ad EVERY time + Starts Direct Download
         homeFastDownloadBtn.onclick = (e) => {
@@ -374,6 +439,7 @@ document.addEventListener('DOMContentLoaded', () => {
             handleRewardedDownload({
                 buttonElement: homeFastDownloadBtn,
                 downloadUrl: fastUrl,
+                fallbackStreamUrl,
                 sourceUrl: video.source_url || linkInput.value.trim(),
                 fileName,
                 mode: 'fast'
@@ -386,6 +452,7 @@ document.addEventListener('DOMContentLoaded', () => {
             handleRewardedDownload({
                 buttonElement: homeStdDownloadBtn,
                 downloadUrl: stdUrl,
+                fallbackStreamUrl,
                 sourceUrl: video.source_url || linkInput.value.trim(),
                 fileName,
                 mode: 'standard'
@@ -394,7 +461,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         homeCopyLinkBtn.onclick = () => {
             triggerHaptic('light');
-            const linkToCopy = fastUrl || stdUrl || video.stream_url || '';
+            const linkToCopy = fastUrl || stdUrl || fallbackStreamUrl || '';
             if (linkToCopy) {
                 const fullCopyUrl = new URL(linkToCopy, window.location.origin).href;
                 navigator.clipboard.writeText(fullCopyUrl);
@@ -415,7 +482,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ==========================================
-    // 🎥 PRO-LEVEL VIDEO PLAYER FACTORY (NO QUALITY MENU, SMOOTH ABR, GESTURES & FIXED ROTATION)
+    // 🎥 PRO-LEVEL VIDEO PLAYER FACTORY (NO QUALITY MENU, AUTO-HIDE PROGRESS BAR, FIXED ROTATION)
     // ==========================================
     function initHomeArtPlayer(streamCandidates, poster, title) {
         if (homeArtPlayerInstance) {
@@ -459,9 +526,6 @@ document.addEventListener('DOMContentLoaded', () => {
         let currentCandidateIndex = 0;
         const initialUrl = validCandidates[0];
 
-        // CRITICAL: Always use type: 'm3u8' by default (just like original working player)
-        // because TeraBox/proxy HLS URLs often do not end with literal ".m3u8".
-        // Inside customType.m3u8, if Hls.js encounters a non-M3U8 direct MP4 stream, it seamlessly falls back to native video.src!
         const art = new Artplayer({
             container: containerSelector,
             url: initialUrl,
@@ -472,20 +536,20 @@ document.addEventListener('DOMContentLoaded', () => {
             pip: true,
             autoSize: false,
             autoMini: false,
-            setting: false,         // Quality & nested settings removed for clean Pro UI
+            setting: false,
             playbackRate: false,
             aspectRatio: false,
-            autoOrientation: false, // Disabled to prevent 90°+90°=180° opposite-direction bug
-            fullscreen: false,      // Handled by unified Pro Landscape Fullscreen control
+            autoOrientation: false,
+            fullscreen: false,
             fullscreenWeb: false,
-            miniProgressBar: true,
+            miniProgressBar: false, // CRITICAL FIX: Disabled miniProgressBar so progress bar hides completely when controls hide
             mutex: true,
             backdrop: true,
             playsInline: true,
             fastForward: true,
             lock: false,
             theme: '#ff5533',
-            quality: [],            // Quality controls completely removed as requested
+            quality: [],            // Quality controls completely removed
             controls: [
                 {
                     name: 'proSpeed',
@@ -566,16 +630,11 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         });
 
-        // Mid-Roll Ads Tracker (Every 5 Minutes of Active Viewing)
         attachMidRollAdTracker(art);
 
         return art;
     }
 
-    /**
-     * Attaches Hls.js exactly like original working player with enhanced smooth buffering
-     * and automatic fallback to alternative candidate URLs or native <video> if needed.
-     */
     function attachSmoothHls(video, m3u8Url, art, getNextCandidate) {
         if (art.hls) {
             try { art.hls.destroy(); } catch (e) {}
@@ -615,13 +674,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     return;
                 }
 
-                // If manifest failed to load/parse, try the next candidate URL or native video playback
                 const nextUrl = typeof getNextCandidate === 'function' ? getNextCandidate() : null;
                 if (nextUrl) {
                     console.log('[ProPlayer] Trying next stream source:', nextUrl);
                     attachSmoothHls(video, nextUrl, art, getNextCandidate);
                 } else {
-                    // Fallback: try playing the URL directly as native MP4/WebM in case it's not an M3U8 manifest
                     try { hls.destroy(); } catch (e) {}
                     art.hls = null;
                     video.src = m3u8Url;
@@ -997,7 +1054,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        // If the phone viewport itself rotated into landscape (width > height), do NOT apply 90deg CSS rotation!
         if (window.innerWidth > window.innerHeight) {
             container.classList.remove('art-pro-landscape-rotated');
             container.classList.add('art-pro-fullscreen-native');
@@ -1211,8 +1267,9 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             })();
 
+            // Always resolve /api/stream if stream OR direct download links are missing
             const resolvePromise = (async () => {
-                if (!video.stream_url && video.url) {
+                if ((!video.stream_url || (!video.fast_dlink && !video.download_link)) && video.url) {
                     try {
                         const res = await fetch('/api/stream', {
                             method: 'POST',
@@ -1222,13 +1279,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const d = await res.json();
                         const matched = d.list?.find(x => x.type === 'video') || d.list?.[0];
                         if (matched) {
-                            video.stream_url = matched.stream_url || video.stream_url;
-                            video.fast_stream_url = matched.fast_stream_url || video.fast_stream_url;
-                            video.fast_dlink = matched.fast_dlink || video.fast_dlink;
-                            video.download_link = matched.download_link || matched.dlink || video.download_link;
-                            video.dlink = matched.dlink || video.dlink;
-                            video.size_formatted = matched.size_formatted || video.size_formatted;
-                            video.duration = matched.duration || video.duration;
+                            mergeResolvedVideoFields(video, matched);
                         }
                     } catch (e) {}
                 }
@@ -1252,7 +1303,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         playerModal.style.display = 'flex';
 
-        if (!video.stream_url && video.url) {
+        if ((!video.stream_url || (!video.fast_dlink && !video.download_link)) && video.url) {
             try {
                 const res = await fetch('/api/stream', {
                     method: 'POST',
@@ -1262,18 +1313,14 @@ document.addEventListener('DOMContentLoaded', () => {
                 const d = await res.json();
                 const matched = d.list?.find(x => x.type === 'video') || d.list?.[0];
                 if (matched) {
-                    video.stream_url = matched.stream_url || video.stream_url;
-                    video.fast_stream_url = matched.fast_stream_url || video.fast_stream_url;
-                    video.fast_dlink = matched.fast_dlink || video.fast_dlink;
-                    video.download_link = matched.download_link || matched.dlink || video.download_link;
-                    video.dlink = matched.dlink || video.dlink;
+                    mergeResolvedVideoFields(video, matched);
                 }
             } catch (e) {
                 console.error('Failed to resolve stream in modal:', e);
             }
         }
 
-        const { fastUrl, stdUrl } = extractDirectDownloadLinks(video);
+        const { fastUrl, stdUrl, fallbackStreamUrl } = extractDirectDownloadLinks(video);
 
         // Modal Fast Direct Download -> Runs Ad EVERY time + Starts Direct Download
         modalDownloadBtn.onclick = (e) => {
@@ -1281,6 +1328,7 @@ document.addEventListener('DOMContentLoaded', () => {
             handleRewardedDownload({
                 buttonElement: modalDownloadBtn,
                 downloadUrl: fastUrl,
+                fallbackStreamUrl,
                 sourceUrl: video.url || '',
                 fileName,
                 mode: 'fast'
@@ -1294,6 +1342,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 handleRewardedDownload({
                     buttonElement: modalStdDownloadBtn,
                     downloadUrl: stdUrl,
+                    fallbackStreamUrl,
                     sourceUrl: video.url || '',
                     fileName,
                     mode: 'standard'
@@ -1333,7 +1382,7 @@ document.addEventListener('DOMContentLoaded', () => {
     function attachMidRollAdTracker(art) {
         if (!art) return;
         let activeWatchSeconds = 0;
-        const MID_ROLL_INTERVAL = 5 * 60; // 5 Minutes
+        const MID_ROLL_INTERVAL = 5 * 60;
         let isAdPlaying = false;
 
         const interval = setInterval(async () => {
@@ -1376,19 +1425,59 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ==========================================
-    // ⚡ REWARDED DIRECT DOWNLOAD ENGINE (FAST & STANDARD — RUNS AD EVERY TIME & DIRECT DOWNLOADS WITHOUT WEBPAGE)
+    // ⚡ MULTI-STAGE REWARDED DIRECT DOWNLOAD ENGINE (FAST & STANDARD)
     // ==========================================
     function sanitizeDownloadFileName(rawName) {
         let clean = (rawName || 'TeraStream_Video')
             .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
             .trim();
-        if (!/\.(mp4|mkv|webm|mov|avi)$/i.test(clean)) {
+        if (!/\.(mp4|mkv|webm|mov|avi|ts)$/i.test(clean)) {
             clean += '.mp4';
         }
         return clean;
     }
 
-    async function handleRewardedDownload({ buttonElement, downloadUrl, sourceUrl = '', fileName = 'video.mp4', mode = 'fast' }) {
+    /**
+     * Ensures URL forces attachment download (Content-Disposition: attachment)
+     * rather than opening an inline video player page in the browser.
+     */
+    function buildAttachmentDownloadUrl(rawUrl, fileName) {
+        if (!rawUrl) return '';
+        let fullUrl = rawUrl;
+        try {
+            fullUrl = new URL(rawUrl, window.location.origin).href;
+        } catch (e) {}
+
+        // If the URL has response-content-disposition=inline, convert to attachment
+        if (fullUrl.includes('response-content-disposition=inline')) {
+            fullUrl = fullUrl.replace(/response-content-disposition=inline/gi, 'response-content-disposition=attachment');
+        }
+
+        // For same-origin /api/ endpoints, append download=1&disposition=attachment
+        try {
+            const parsed = new URL(fullUrl);
+            if (parsed.origin === window.location.origin && parsed.pathname.startsWith('/api/')) {
+                if (!parsed.searchParams.has('download')) {
+                    parsed.searchParams.set('download', '1');
+                }
+                if (!parsed.searchParams.has('filename')) {
+                    parsed.searchParams.set('filename', fileName);
+                }
+                fullUrl = parsed.href;
+            }
+        } catch (e) {}
+
+        return fullUrl;
+    }
+
+    async function handleRewardedDownload({
+        buttonElement,
+        downloadUrl,
+        fallbackStreamUrl = '',
+        sourceUrl = '',
+        fileName = 'video.mp4',
+        mode = 'fast'
+    }) {
         triggerHaptic('medium');
 
         const originalHtml = buttonElement.innerHTML;
@@ -1396,15 +1485,17 @@ document.addEventListener('DOMContentLoaded', () => {
         buttonElement.disabled = true;
         buttonElement.innerHTML = `
             <span class="btn-spinner"></span>
-            <span>Loading Sponsor Ad & Preparing File...</span>
+            <span>Loading Ad & Preparing Download...</span>
         `;
 
-        // 1. Concurrently resolve fresh direct download URL if needed while the Ad is displayed
+        // 1. Concurrently fetch fresh direct download link from /api/stream if needed while Ad plays
         const resolveFreshLinkPromise = (async () => {
-            if (downloadUrl && downloadUrl !== '#') {
-                return downloadUrl;
+            if (downloadUrl && !isTeraSharePage(downloadUrl) && !isLikelyM3u8Stream(downloadUrl)) {
+                return { directUrl: downloadUrl, streamUrl: fallbackStreamUrl };
             }
-            if (!sourceUrl) return downloadUrl || '';
+            if (!sourceUrl) {
+                return { directUrl: downloadUrl || '', streamUrl: fallbackStreamUrl };
+            }
             try {
                 const res = await fetch('/api/stream', {
                     method: 'POST',
@@ -1415,15 +1506,21 @@ document.addEventListener('DOMContentLoaded', () => {
                 const matched = d.list?.find(x => x.type === 'video') || d.list?.[0];
                 if (matched) {
                     const links = extractDirectDownloadLinks(matched);
-                    return mode === 'standard' ? (links.stdUrl || links.fastUrl) : (links.fastUrl || links.stdUrl);
+                    const chosenDirect = mode === 'standard'
+                        ? (links.stdUrl || links.fastUrl)
+                        : (links.fastUrl || links.stdUrl);
+                    return {
+                        directUrl: chosenDirect || downloadUrl || '',
+                        streamUrl: links.fallbackStreamUrl || fallbackStreamUrl
+                    };
                 }
             } catch (err) {
                 console.warn('[Direct Download] Fresh link resolution failed:', err);
             }
-            return downloadUrl || '';
+            return { directUrl: downloadUrl || '', streamUrl: fallbackStreamUrl };
         })();
 
-        // 2. ALWAYS show Rewarded / Interstitial Ad on EVERY download click (both Fast & Standard)
+        // 2. ALWAYS show Rewarded / Interstitial Ad on EVERY download click (Fast & Standard)
         const adPromise = (async () => {
             if (window.adManager) {
                 console.log(`[Direct Download] Triggering mandatory Ad for ${mode} download...`);
@@ -1431,98 +1528,184 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         })();
 
-        let finalDownloadUrl = '';
+        let resolved = { directUrl: downloadUrl || '', streamUrl: fallbackStreamUrl };
         try {
-            const [resolvedUrl] = await Promise.all([resolveFreshLinkPromise, adPromise]);
-            finalDownloadUrl = resolvedUrl;
+            const [resLinks] = await Promise.all([resolveFreshLinkPromise, adPromise]);
+            if (resLinks) resolved = resLinks;
         } catch (e) {
             console.warn('[Direct Download] Error during ad/resolve:', e);
-            finalDownloadUrl = downloadUrl;
-        }
-
-        if (!finalDownloadUrl || finalDownloadUrl === '#') {
-            buttonElement.innerHTML = originalHtml;
-            buttonElement.style.pointerEvents = 'auto';
-            buttonElement.disabled = false;
-            showDownloadToast('Direct file link is still generating. Please try again.');
-            return;
         }
 
         const safeFileName = sanitizeDownloadFileName(fileName);
+        const targetDirectUrl = resolved.directUrl || resolved.streamUrl;
 
-        buttonElement.innerHTML = `
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><polyline points="20 6 9 17 4 12"/></svg>
-            <span>Downloading Directly...</span>
-        `;
-
-        // 3. Trigger Direct File Download (Without opening a browser webpage!)
-        triggerDirectDownload(finalDownloadUrl, safeFileName, mode);
-
-        setTimeout(() => {
+        if (!targetDirectUrl || targetDirectUrl === '#') {
             buttonElement.innerHTML = originalHtml;
             buttonElement.style.pointerEvents = 'auto';
             buttonElement.disabled = false;
-        }, 3200);
+            showDownloadToast('Unable to generate download link. Please try again.');
+            return;
+        }
+
+        try {
+            await executeGuaranteedDownload({
+                url: targetDirectUrl,
+                fallbackStreamUrl: resolved.streamUrl,
+                fileName: safeFileName,
+                mode,
+                buttonElement
+            });
+        } finally {
+            setTimeout(() => {
+                buttonElement.innerHTML = originalHtml;
+                buttonElement.style.pointerEvents = 'auto';
+                buttonElement.disabled = false;
+            }, 2500);
+        }
     }
 
     /**
-     * Starts a direct binary file download inside Telegram Mini App / WebView
-     * WITHOUT calling tg.openLink() (which previously opened an external webpage).
+     * Multi-stage downloader that guarantees the video file starts downloading:
+     * - Stage 1: If the only available URL is an HLS (.m3u8) stream, downloads and merges the video segments in-app into a playable file and saves via Blob URL.
+     * - Stage 2: For direct binary links (fast_dlink / download_link), triggers native attachment download via forced Content-Disposition URL + Telegram downloadFile / top-level browser download handoff.
      */
-    function triggerDirectDownload(url, fileName, mode = 'fast') {
-        if (!url) return;
+    async function executeGuaranteedDownload({ url, fallbackStreamUrl, fileName, mode, buttonElement }) {
+        const attachmentUrl = buildAttachmentDownloadUrl(url, fileName);
 
-        // Ensure full absolute URL for Telegram downloadFile API
-        let absoluteUrl = url;
-        try {
-            absoluteUrl = new URL(url, window.location.origin).href;
-        } catch (e) {}
-
-        showDownloadToast(`Starting ${mode === 'fast' ? 'Fast' : 'Standard'} Download: ${fileName}`);
-
-        // Method 1: Telegram Native File Download API (Bot API 8.0+)
-        if (tg && typeof tg.downloadFile === 'function') {
-            try {
-                tg.downloadFile({ url: absoluteUrl, file_name: fileName }, (accepted) => {
-                    if (!accepted) {
-                        triggerInAppStreamDownload(absoluteUrl, fileName);
-                    }
-                });
-                return;
-            } catch (err) {
-                console.warn('[Direct Download] tg.downloadFile fallback to in-app stream:', err);
-            }
+        // If the URL is an HLS (.m3u8) stream (because backend only returned stream_url), download segments in-app!
+        if (isLikelyM3u8Stream(attachmentUrl)) {
+            const ok = await downloadHlsStreamAsVideoFile(attachmentUrl, fileName, buttonElement);
+            if (ok) return;
         }
 
-        // Method 2: In-App Hidden Iframe + Direct Download Anchor (No target="_blank", stays inside player)
-        triggerInAppStreamDownload(absoluteUrl, fileName);
+        buttonElement.innerHTML = `
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Starting ${mode === 'fast' ? 'Fast' : 'Standard'} Download...</span>
+        `;
+        showDownloadToast(`Starting ${mode === 'fast' ? 'Fast' : 'Standard'} Download: ${fileName}`);
+
+        // Trigger simultaneous multi-channel binary download so it works across all Telegram Android, iOS & Desktop clients
+        triggerNativeBinaryDownload(attachmentUrl, fileName);
     }
 
-    function triggerInAppStreamDownload(url, fileName) {
+    /**
+     * Triggers binary file download across Telegram Android, iOS, and Desktop WebViews.
+     * Does NOT block fallback execution if tg.downloadFile fails silently.
+     */
+    function triggerNativeBinaryDownload(attachmentUrl, fileName) {
+        if (!attachmentUrl) return;
+
+        // Upgrade http:// to https:// where possible for Telegram API compatibility
+        const httpsUrl = attachmentUrl.replace(/^http:\/\/(d\.pcs\.baidu\.com|data\.)/i, 'https://$1');
+
+        // 1. Trigger in-WebView anchor + top-level attachment navigation
         try {
             const a = document.createElement('a');
-            a.href = url;
-            a.setAttribute('download', fileName || 'video.mp4');
-            a.rel = 'noopener';
-            a.style.display = 'none';
+            a.href = attachmentUrl;
+            a.setAttribute('download', fileName);
+            a.rel = 'noopener noreferrer';
             document.body.appendChild(a);
             a.click();
             setTimeout(() => {
                 try { document.body.removeChild(a); } catch (e) {}
             }, 1500);
+        } catch (e) {}
 
-            const sandbox = document.getElementById('direct-download-sandbox');
-            if (sandbox) {
-                const iframe = document.createElement('iframe');
-                iframe.style.display = 'none';
-                iframe.src = url;
-                sandbox.appendChild(iframe);
-                setTimeout(() => {
-                    try { sandbox.removeChild(iframe); } catch (e) {}
-                }, 60000);
+        // 2. If inside Telegram Mini App, use openLink (with try_instant_view: false) on the real binary attachment URL
+        // Note: In Telegram Android/iOS BotWebViewContainer, external binary downloads (like Baidu PCS / TeraBox CDN dlink)
+        // must be handed off to the system DownloadManager via tg.openLink or window.location.assign!
+        if (tg && typeof tg.openLink === 'function') {
+            try {
+                tg.openLink(attachmentUrl, { try_instant_view: false });
+                return;
+            } catch (e) {
+                console.warn('[Direct Download] tg.openLink error:', e);
             }
+        }
+
+        // 3. Fallback top-level navigation to attachment stream
+        try {
+            window.location.assign(attachmentUrl);
+        } catch (e) {
+            window.open(attachmentUrl, '_blank');
+        }
+    }
+
+    /**
+     * In-App HLS (.m3u8) Segment Downloader & Saver (used when only an HLS stream URL is available)
+     */
+    async function downloadHlsStreamAsVideoFile(m3u8Url, fileName, buttonElement) {
+        try {
+            showDownloadToast('Fetching video stream segments for direct save...');
+            const res = await fetch(m3u8Url);
+            if (!res.ok) return false;
+
+            const text = await res.text();
+            if (!text.includes('#EXTM3U')) {
+                return false;
+            }
+
+            const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+
+            // If master playlist, follow the first variant stream playlist
+            const variantLine = lines.find((line, idx) => !line.startsWith('#') && lines[idx - 1]?.startsWith('#EXT-X-STREAM-INF'));
+            if (variantLine) {
+                const variantUrl = new URL(variantLine, m3u8Url).href;
+                return await downloadHlsStreamAsVideoFile(variantUrl, fileName, buttonElement);
+            }
+
+            const segmentUrls = lines
+                .filter(l => !l.startsWith('#'))
+                .map(seg => new URL(seg, m3u8Url).href);
+
+            if (segmentUrls.length === 0) return false;
+
+            const chunks = new Array(segmentUrls.length);
+            let completed = 0;
+            const concurrency = 4;
+            let currentIdx = 0;
+
+            const worker = async () => {
+                while (currentIdx < segmentUrls.length) {
+                    const index = currentIdx++;
+                    const segRes = await fetch(segmentUrls[index]);
+                    if (!segRes.ok) throw new Error(`Segment ${index} failed`);
+                    chunks[index] = await segRes.arrayBuffer();
+                    completed++;
+                    const pct = Math.min(99, Math.round((completed / segmentUrls.length) * 100));
+                    if (buttonElement) {
+                        buttonElement.innerHTML = `
+                            <span class="btn-spinner"></span>
+                            <span>Downloading Video (${pct}%)...</span>
+                        `;
+                    }
+                }
+            };
+
+            const workers = Array.from({ length: Math.min(concurrency, segmentUrls.length) }, () => worker());
+            await Promise.all(workers);
+
+            const videoBlob = new Blob(chunks, { type: 'video/mp2t' });
+            const blobUrl = URL.createObjectURL(videoBlob);
+            const tsFileName = fileName.replace(/\.mp4$/i, '.ts');
+
+            const a = document.createElement('a');
+            a.href = blobUrl;
+            a.download = tsFileName;
+            document.body.appendChild(a);
+            a.click();
+            setTimeout(() => {
+                try {
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(blobUrl);
+                } catch (e) {}
+            }, 10000);
+
+            showDownloadToast(`Saved ${tsFileName} to your device!`);
+            return true;
         } catch (err) {
-            console.error('[Direct Download] Fallback error:', err);
+            console.warn('[HLS Downloader] Fallback to native download:', err);
+            return false;
         }
     }
 

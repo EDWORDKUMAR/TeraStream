@@ -400,25 +400,38 @@ body.pro-landscape-lock {
   transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1), width 0.32s ease, height 0.32s ease;
 }
 
-/* Hide Quality Selector Controls Completely as Requested */
+/* Hide Quality Selector Controls & Mini Progress Bar Completely */
 .art-control-quality,
-.art-setting-item[data-name="quality"] {
+.art-setting-item[data-name="quality"],
+.art-video-player .art-mini-progress-bar {
   display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
-/* Make ArtPlayer Timeline & Controls Ultra Smooth & Easy to Use on Mobile */
+/* Make ArtPlayer Timeline & Controls Ultra Smooth & Hide Progress Bar When Controls Hide */
 .art-video-player .art-bottom {
   background: linear-gradient(to top, rgba(0, 0, 0, 0.88) 0%, rgba(0, 0, 0, 0.45) 65%, transparent 100%) !important;
   padding-bottom: 6px !important;
-  transition: opacity 0.25s ease, transform 0.25s ease !important;
+  transition: opacity 0.25s ease, visibility 0.25s ease, transform 0.25s ease !important;
+}
+
+/* Explicitly hide bottom controls & progress bar when controls auto-hide */
+.art-video-player:not(.art-control-show) .art-bottom,
+.art-video-player:not(.art-control-show) .art-control-progress,
+.art-video-player:not(.art-control-show) .art-controls {
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }
 
 .art-video-player .art-control-progress {
-  height: 26px !important;
-  display: flex !important;
+  height: 24px !important;
   align-items: center !important;
   cursor: pointer !important;
   touch-action: none !important;
+  transition: opacity 0.22s ease, visibility 0.22s ease !important;
 }
 
 .art-video-player .art-control-progress-inner {
@@ -531,13 +544,15 @@ body.pro-landscape-lock {
   gap: 10px;
   z-index: 35;
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition: opacity 0.25s ease;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
 }
 
 .art-video-player.art-control-show .pro-player-top-bar,
 .pro-player-top-bar.force-visible {
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
 }
 
@@ -609,12 +624,14 @@ body.pro-landscape-lock {
   gap: 28px;
   z-index: 30;
   opacity: 0;
+  visibility: hidden;
   pointer-events: none;
-  transition: opacity 0.22s ease, transform 0.22s var(--ease-spring);
+  transition: opacity 0.22s ease, visibility 0.22s ease, transform 0.22s var(--ease-spring);
 }
 
 .art-video-player.art-control-show .pro-center-controls {
   opacity: 1;
+  visibility: visible;
   pointer-events: auto;
 }
 
@@ -695,6 +712,7 @@ body.pro-landscape-lock {
 .art-video-player.pro-screen-locked .pro-player-top-bar,
 .art-video-player.pro-screen-locked .art-layers {
   opacity: 0 !important;
+  visibility: hidden !important;
   pointer-events: none !important;
 }
 
